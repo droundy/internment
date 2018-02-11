@@ -3,6 +3,11 @@ name = "internment"
 version = "0.1.0"
 authors = ["David Roundy <roundyd@physics.oregonstate.edu>"]
 
+description = "Easy interning of data"
+license = "MPL-2.0"
+repository = "https://github.com/droundy/internment"
+
+
 [dependencies]
 
 lazy_static = "1.0"
