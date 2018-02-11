@@ -8,3 +8,5 @@ authors = ["David Roundy <roundyd@physics.oregonstate.edu>"]
 lazy_static = "1.0"
 
 state = { version = "0.4", features = ["tls"] }
+
+tinyset = "0.0.12"
