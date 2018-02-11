@@ -1,0 +1,10 @@
+[package]
+name = "internment"
+version = "0.1.0"
+authors = ["David Roundy <roundyd@physics.oregonstate.edu>"]
+
+[dependencies]
+
+lazy_static = "1.0"
+
+state = { version = "0.4", features = ["tls"] }
