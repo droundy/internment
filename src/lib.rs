@@ -7,7 +7,7 @@ extern crate lazy_static;
 use std::collections::HashMap;
 use std::sync::Mutex;
 
-use std::hash::Hash;
+use std::hash::{Hash, Hasher};
 use std::borrow::Borrow;
 use std::ops::Deref;
 use std::fmt::Debug;
@@ -71,6 +71,12 @@ impl<T: Debug> Fits64 for Intern<T> {
     }
     fn to_u64(self) -> u64 {
         self.pointer as u64
+    }
+}
+
+impl<T> Hash for Intern<T> {
+    fn hash<H: Hasher>(&self, state: &mut H) {
+        self.pointer.hash(state);
     }
 }
 
