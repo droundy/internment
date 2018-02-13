@@ -42,8 +42,9 @@ use std::sync::Mutex;
 
 use std::hash::{Hash, Hasher};
 use std::borrow::Borrow;
+use std::convert::AsRef;
 use std::ops::Deref;
-use std::fmt::Debug;
+use std::fmt::{Debug, Display, Pointer};
 
 use tinyset::u64set::Fits64;
 
@@ -125,6 +126,11 @@ impl<T> Borrow<T> for Intern<T> {
         unsafe { &*self.pointer }
     }
 }
+impl<T> AsRef<T> for Intern<T> {
+    fn as_ref(&self) -> &T {
+        unsafe { &*self.pointer }
+    }
+}
 
 impl<T> Deref for Intern<T> {
     type Target = T;
@@ -133,11 +139,29 @@ impl<T> Deref for Intern<T> {
     }
 }
 
+impl<T: Default+Hash+Eq+Clone+Send+'static> Default for Intern<T> {
+    fn default() -> Intern<T> {
+        Intern::new(Default::default())
+    }
+}
+
 impl<T: Debug> Debug for Intern<T> {
     fn fmt(&self, f: &mut std::fmt::Formatter) -> Result<(), std::fmt::Error> {
-        self.pointer.fmt(f)?;
+        Pointer::fmt(&self.pointer, f)?;
         f.write_str(" : ")?;
         self.deref().fmt(f)
+    }
+}
+
+impl<T: Display> Display for Intern<T> {
+    fn fmt(&self, f: &mut std::fmt::Formatter) -> Result<(), std::fmt::Error> {
+        self.deref().fmt(f)
+    }
+}
+
+impl<T> Pointer for Intern<T> {
+    fn fmt(&self, f: &mut std::fmt::Formatter) -> Result<(), std::fmt::Error> {
+        Pointer::fmt(&self.pointer, f)
     }
 }
 
@@ -281,14 +305,33 @@ impl<T: Eq+Hash+Send> Deref for ArcIntern<T> {
     }
 }
 
+impl<T: Clone + Eq+Hash+Send+Default> Default for ArcIntern<T> {
+    fn default() -> ArcIntern<T> {
+        ArcIntern::new(Default::default())
+    }
+}
+
 impl<T: Clone + Eq+Hash+Send+Debug> Debug for ArcIntern<T> {
     fn fmt(&self, f: &mut std::fmt::Formatter) -> Result<(), std::fmt::Error> {
-        self.pointer.fmt(f)?;
+        Pointer::fmt(&self.pointer, f)?;
         f.write_str(" : ")?;
         // self.refcount().fmt(f)?;
         self.deref().fmt(f)
     }
 }
+
+impl<T: Display+Clone+Eq+Hash+Send> Display for ArcIntern<T> {
+    fn fmt(&self, f: &mut std::fmt::Formatter) -> Result<(), std::fmt::Error> {
+        self.deref().fmt(f)
+    }
+}
+
+impl<T: Clone+Eq+Hash+Send> Pointer for ArcIntern<T> {
+    fn fmt(&self, f: &mut std::fmt::Formatter) -> Result<(), std::fmt::Error> {
+        Pointer::fmt(&self.pointer, f)
+    }
+}
+
 
 /// The hash implementation for `ArcIntern` returns the hash of the
 /// pointer value, not the hash of the value pointed to.  This should
@@ -315,6 +358,8 @@ mod tests {
     #[test]
     fn eq_strings() {
         assert_eq!(Intern::new("hello"), Intern::new("hello"));
+        let world = Intern::new("world");
+        println!("Hello {}", world);
     }
     #[test]
     fn different_strings() {
@@ -334,6 +379,8 @@ mod tests {
     #[test]
     fn aeq_strings() {
         assert_eq!(ArcIntern::new("hello"), ArcIntern::new("hello"));
+        let world = ArcIntern::new("world");
+        println!("Hello {}", world);
     }
     #[test]
     fn adifferent_strings() {
