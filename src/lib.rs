@@ -123,7 +123,7 @@ impl<T: Clone + Eq + Hash + Send + 'static> Intern<T> {
 
 impl<T> Borrow<T> for Intern<T> {
     fn borrow(&self) -> &T {
-        unsafe { &*self.pointer }
+        self.as_ref()
     }
 }
 impl<T> AsRef<T> for Intern<T> {
@@ -294,6 +294,11 @@ impl<T: Eq + Hash + Send> Drop for ArcIntern<T> {
 
 impl<T: Eq+Hash+Send> Borrow<T> for ArcIntern<T> {
     fn borrow(&self) -> &T {
+        self.as_ref()
+    }
+}
+impl<T: Eq+Hash+Send> AsRef<T> for ArcIntern<T> {
+    fn as_ref(&self) -> &T {
         unsafe { &*self.pointer }
     }
 }
