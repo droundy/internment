@@ -32,6 +32,7 @@ use internment::Intern;
 let x = Intern::new("hello");
 let y = Intern::new("world");
 assert_ne!(x, y);
+println!("The conventional greeting is '{} {}'", x, y);
 ```
 
 # Comparison with other interning crates
