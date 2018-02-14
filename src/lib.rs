@@ -392,3 +392,52 @@ mod tests {
         assert_ne!(ArcIntern::new("hello"), ArcIntern::new("world"));
     }
 }
+
+pub struct LocalIntern<T> {
+    pointer: *const T,
+}
+
+impl<T> PartialEq for LocalIntern<T> {
+    fn eq(&self, other: &LocalIntern<T>) -> bool {
+        self.pointer == other.pointer
+    }
+}
+impl<T> Eq for LocalIntern<T> {}
+
+impl<T> Clone for LocalIntern<T> {
+    fn clone(&self) -> Self {
+        LocalIntern { pointer: self.pointer }
+    }
+}
+
+/// An `LocalIntern` is `Copy`, which is unusal for a pointer.  This is safe
+/// because we never free the data pointed to by an `LocalIntern`.
+impl<T> Copy for LocalIntern<T> {}
+
+impl<T: Clone + Eq + Hash + Send + 'static> LocalIntern<T> {
+    /// LocalIntern a value.  If this value has not previously been
+    /// interned, then `new` will allocate a spot for the value on the
+    /// heap.  Otherwise, it will return a pointer to the object
+    /// previously allocated.
+    ///
+    /// Note that `LocalIntern::new` is a bit slow, since it needs to check
+    /// a `HashMap` protected by a `Mutex`.
+    pub fn new(val: T) -> LocalIntern<T> {
+        if CONTAINER.try_get_local::<Mutex<HashMap<T,Box<T>>>>().is_none() {
+            CONTAINER.set_local(|| Mutex::new(HashMap::<T,Box<T>>::new()));
+        }
+        let mut m = CONTAINER.get_local::<Mutex<HashMap<T,Box<T>>>>().lock().unwrap();
+        if m.get(&val).is_none() {
+            m.insert(val.clone(), Box::new(val.clone()));
+        }
+        LocalIntern { pointer: m.get(&val).unwrap().borrow() }
+    }
+    /// See how many objects have been interned.  This may be helpful
+    /// in analyzing memory use.
+    pub fn num_objects_interned(&self) -> usize {
+        if let Some(m) = CONTAINER.try_get_local::<Mutex<HashMap<T,Box<T>>>>() {
+            return m.lock().unwrap().len();
+        }
+        0
+    }
+}
