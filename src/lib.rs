@@ -39,6 +39,7 @@ extern crate lazy_static;
 
 use std::collections::HashMap;
 use std::sync::Mutex;
+use std::cell::RefCell;
 
 use std::hash::{Hash, Hasher};
 use std::borrow::Borrow;
@@ -410,23 +411,24 @@ impl<T> Clone for LocalIntern<T> {
     }
 }
 
-/// An `LocalIntern` is `Copy`, which is unusal for a pointer.  This is safe
-/// because we never free the data pointed to by an `LocalIntern`.
+/// An `LocalIntern` is `Copy`, which is unusal for a pointer.  This
+/// is safe because we never free the data pointed to by an
+/// `LocalIntern` until the thread itself is destroyed.
 impl<T> Copy for LocalIntern<T> {}
 
 impl<T: Clone + Eq + Hash + Send + 'static> LocalIntern<T> {
-    /// LocalIntern a value.  If this value has not previously been
-    /// interned, then `new` will allocate a spot for the value on the
-    /// heap.  Otherwise, it will return a pointer to the object
-    /// previously allocated.
+    /// Intern a value in a thread-local way.  If this value has not
+    /// previously been interned, then `new` will allocate a spot for
+    /// the value on the heap.  Otherwise, it will return a pointer to
+    /// the object previously allocated.
     ///
     /// Note that `LocalIntern::new` is a bit slow, since it needs to check
     /// a `HashMap` protected by a `Mutex`.
     pub fn new(val: T) -> LocalIntern<T> {
-        if CONTAINER.try_get_local::<Mutex<HashMap<T,Box<T>>>>().is_none() {
-            CONTAINER.set_local(|| Mutex::new(HashMap::<T,Box<T>>::new()));
+        if CONTAINER.try_get_local::<RefCell<HashMap<T,Box<T>>>>().is_none() {
+            CONTAINER.set_local(|| RefCell::new(HashMap::<T,Box<T>>::new()));
         }
-        let mut m = CONTAINER.get_local::<Mutex<HashMap<T,Box<T>>>>().lock().unwrap();
+        let mut m = CONTAINER.get_local::<RefCell<HashMap<T,Box<T>>>>().borrow_mut();
         if m.get(&val).is_none() {
             m.insert(val.clone(), Box::new(val.clone()));
         }
@@ -435,9 +437,117 @@ impl<T: Clone + Eq + Hash + Send + 'static> LocalIntern<T> {
     /// See how many objects have been interned.  This may be helpful
     /// in analyzing memory use.
     pub fn num_objects_interned(&self) -> usize {
-        if let Some(m) = CONTAINER.try_get_local::<Mutex<HashMap<T,Box<T>>>>() {
-            return m.lock().unwrap().len();
+        if let Some(m) = CONTAINER.try_get_local::<RefCell<HashMap<T,Box<T>>>>() {
+            return m.borrow().len();
         }
         0
+    }
+}
+
+impl<T> Borrow<T> for LocalIntern<T> {
+    fn borrow(&self) -> &T {
+        self.as_ref()
+    }
+}
+impl<T> AsRef<T> for LocalIntern<T> {
+    fn as_ref(&self) -> &T {
+        unsafe { &*self.pointer }
+    }
+}
+
+impl<T> Deref for LocalIntern<T> {
+    type Target = T;
+    fn deref(&self) -> &T {
+        self.borrow()
+    }
+}
+
+impl<T: Default+Hash+Eq+Clone+Send+'static> Default for LocalIntern<T> {
+    fn default() -> LocalIntern<T> {
+        LocalIntern::new(Default::default())
+    }
+}
+
+impl<T: Debug> Debug for LocalIntern<T> {
+    fn fmt(&self, f: &mut std::fmt::Formatter) -> Result<(), std::fmt::Error> {
+        Pointer::fmt(&self.pointer, f)?;
+        f.write_str(" : ")?;
+        self.deref().fmt(f)
+    }
+}
+
+impl<T: Display> Display for LocalIntern<T> {
+    fn fmt(&self, f: &mut std::fmt::Formatter) -> Result<(), std::fmt::Error> {
+        self.deref().fmt(f)
+    }
+}
+
+impl<T> Pointer for LocalIntern<T> {
+    fn fmt(&self, f: &mut std::fmt::Formatter) -> Result<(), std::fmt::Error> {
+        Pointer::fmt(&self.pointer, f)
+    }
+}
+
+impl<T: Debug> Fits64 for LocalIntern<T> {
+    unsafe fn from_u64(x: u64) -> Self {
+        LocalIntern { pointer: x as *const T }
+    }
+    fn to_u64(self) -> u64 {
+        self.pointer as u64
+    }
+}
+
+/// The hash implementation for `LocalIntern` returns the hash of the
+/// pointer value, not the hash of the value pointed to.  This should
+/// be irrelevant, since there is a unique pointer for every value,
+/// but it *is* observable, since you could compare the pointer of
+/// `LocalIntern::new(data)` with `data` itself.
+impl<T> Hash for LocalIntern<T> {
+    fn hash<H: Hasher>(&self, state: &mut H) {
+        self.pointer.hash(state);
+    }
+}
+
+#[cfg(test)]
+mod local_tests {
+    use super::LocalIntern;
+    use super::ArcIntern;
+    #[test]
+    fn eq_numbers() {
+        assert_eq!(LocalIntern::new(5), LocalIntern::new(5));
+        assert_eq!(LocalIntern::new(6).num_objects_interned(), 2);
+        assert_eq!(LocalIntern::new(6).num_objects_interned(), 2);
+        assert_eq!(LocalIntern::new(7).num_objects_interned(), 3);
+    }
+    #[test]
+    fn eq_strings() {
+        assert_eq!(LocalIntern::new("hello"), LocalIntern::new("hello"));
+        let world = LocalIntern::new("world");
+        println!("Hello {}", world);
+    }
+    #[test]
+    fn different_strings() {
+        assert_ne!(LocalIntern::new("hello"), LocalIntern::new("world"));
+    }
+
+    #[test]
+    fn aeq_numbers() {
+        assert_eq!(ArcIntern::new(5), ArcIntern::new(5));
+        assert_eq!(ArcIntern::new(6).num_objects_interned(), 1);
+        assert_eq!(ArcIntern::new(6).num_objects_interned(), 1);
+        assert_eq!(ArcIntern::new(7).num_objects_interned(), 1);
+        let six = ArcIntern::new(6);
+        assert_eq!(ArcIntern::new(7).num_objects_interned(), 2);
+        assert_eq!(ArcIntern::new(6), six);
+    }
+    #[test]
+    fn aeq_strings() {
+        assert_eq!(ArcIntern::new("hello"), ArcIntern::new("hello"));
+        let world = ArcIntern::new("world");
+        println!("Hello {}", world);
+    }
+    #[test]
+    fn adifferent_strings() {
+        assert_ne!(ArcIntern::new("hello"), ArcIntern::new("world"));
     }
 }
