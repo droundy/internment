@@ -355,27 +355,12 @@ fn test_arcintern_freeing() {
     assert_eq!(ArcIntern::new(7).num_objects_interned(), 2);
     assert_eq!(ArcIntern::new(6), six);
 }
-
-#[cfg(test)]
-mod tests {
-    use super::Intern;
-    #[test]
-    fn eq_numbers() {
-        assert_eq!(Intern::new(5), Intern::new(5));
-        assert_eq!(Intern::new(6).num_objects_interned(), 2);
-        assert_eq!(Intern::new(6).num_objects_interned(), 2);
-        assert_eq!(Intern::new(7).num_objects_interned(), 3);
-    }
-    #[test]
-    fn eq_strings() {
-        assert_eq!(Intern::new("hello"), Intern::new("hello"));
-        let world = Intern::new("world");
-        println!("Hello {}", world);
-    }
-    #[test]
-    fn different_strings() {
-        assert_ne!(Intern::new("hello"), Intern::new("world"));
-    }
+#[test]
+fn test_intern_num_objects() {
+    assert_eq!(Intern::new(5), Intern::new(5));
+    assert_eq!(Intern::new(6).num_objects_interned(), 2);
+    assert_eq!(Intern::new(6).num_objects_interned(), 2);
+    assert_eq!(Intern::new(7).num_objects_interned(), 3);
 }
 
 pub struct LocalIntern<T> {
@@ -430,47 +415,11 @@ impl<T: Debug> Fits64 for LocalIntern<T> {
     }
 }
 
-#[cfg(test)]
-mod local_tests {
-    use super::LocalIntern;
-    use super::ArcIntern;
-    #[test]
-    fn eq_numbers() {
-        assert_eq!(LocalIntern::new(5), LocalIntern::new(5));
-        assert_eq!(LocalIntern::new(6).num_objects_interned(), 2);
-        assert_eq!(LocalIntern::new(6).num_objects_interned(), 2);
-        assert_eq!(LocalIntern::new(7).num_objects_interned(), 3);
-    }
-    #[test]
-    fn eq_strings() {
-        assert_eq!(LocalIntern::new("hello"), LocalIntern::new("hello"));
-        let world = LocalIntern::new("world");
-        println!("Hello {}", world);
-    }
-    #[test]
-    fn different_strings() {
-        assert_ne!(LocalIntern::new("hello"), LocalIntern::new("world"));
-    }
-
-    #[test]
-    fn aeq_numbers() {
-        assert_eq!(ArcIntern::new(5), ArcIntern::new(5));
-        assert_eq!(ArcIntern::new(6).num_objects_interned(), 1);
-        assert_eq!(ArcIntern::new(6).num_objects_interned(), 1);
-        assert_eq!(ArcIntern::new(7).num_objects_interned(), 1);
-        let six = ArcIntern::new(6);
-        assert_eq!(ArcIntern::new(7).num_objects_interned(), 2);
-        assert_eq!(ArcIntern::new(6), six);
-    }
-    #[test]
-    fn aeq_strings() {
-        assert_eq!(ArcIntern::new("hello"), ArcIntern::new("hello"));
-        let world = ArcIntern::new("world");
-        println!("Hello {}", world);
-    }
-    #[test]
-    fn adifferent_strings() {
-        assert_ne!(ArcIntern::new("hello"), ArcIntern::new("world"));
-    }
+#[test]
+fn test_localintern_num_objects() {
+    assert_eq!(LocalIntern::new(5), LocalIntern::new(5));
+    assert_eq!(LocalIntern::new(6).num_objects_interned(), 2);
+    assert_eq!(LocalIntern::new(6).num_objects_interned(), 2);
+    assert_eq!(LocalIntern::new(7).num_objects_interned(), 3);
 }
 
