@@ -48,6 +48,7 @@ use std::collections::HashMap;
 use std::sync::Mutex;
 use std::cell::RefCell;
 
+use std::any::Any;
 use std::hash::{Hash, Hasher};
 use std::borrow::Borrow;
 use std::convert::AsRef;
@@ -372,6 +373,24 @@ impl<T> Clone for LocalIntern<T> {
         LocalIntern { pointer: self.pointer }
     }
 }
+
+thread_local! {
+    #[allow(unused)]
+    pub static LOCAL_STUFF: RefCell<Vec<Box<Any>>> = RefCell::new(Vec::new());
+}
+// pub fn with_local<F, T, R>(f: F) -> R
+//     where F: FnOnce(&mut T) -> R,
+//           T: Any+Default
+// {
+//     LOCAL_STUFF.with(|v| -> R {
+//         for x in v.borrow_mut().iter() {
+//             if let Some(xx) = x.downcast_mut() {
+//                 return f(xx)
+//             }
+//         }
+//         unimplemented!()
+//     })
+// }
 
 /// An `LocalIntern` is `Copy`, which is unusal for a pointer.  This
 /// is safe because we never free the data pointed to by an
