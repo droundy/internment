@@ -81,13 +81,6 @@ pub struct Intern<T> {
     pointer: *const T,
 }
 
-impl<T> PartialEq for Intern<T> {
-    fn eq(&self, other: &Intern<T>) -> bool {
-        self.pointer == other.pointer
-    }
-}
-impl<T> Eq for Intern<T> {}
-
 impl<T> Clone for Intern<T> {
     fn clone(&self) -> Self {
         Intern { pointer: self.pointer }
@@ -129,67 +122,12 @@ impl<T: Clone + Eq + Hash + Send + 'static> Intern<T> {
     }
 }
 
-impl<T> Borrow<T> for Intern<T> {
-    fn borrow(&self) -> &T {
-        self.as_ref()
-    }
-}
-impl<T> AsRef<T> for Intern<T> {
-    fn as_ref(&self) -> &T {
-        unsafe { &*self.pointer }
-    }
-}
-
-impl<T> Deref for Intern<T> {
-    type Target = T;
-    fn deref(&self) -> &T {
-        self.borrow()
-    }
-}
-
-impl<T: Default+Hash+Eq+Clone+Send+'static> Default for Intern<T> {
-    fn default() -> Intern<T> {
-        Intern::new(Default::default())
-    }
-}
-
-impl<T: Debug> Debug for Intern<T> {
-    fn fmt(&self, f: &mut std::fmt::Formatter) -> Result<(), std::fmt::Error> {
-        Pointer::fmt(&self.pointer, f)?;
-        f.write_str(" : ")?;
-        self.deref().fmt(f)
-    }
-}
-
-impl<T: Display> Display for Intern<T> {
-    fn fmt(&self, f: &mut std::fmt::Formatter) -> Result<(), std::fmt::Error> {
-        self.deref().fmt(f)
-    }
-}
-
-impl<T> Pointer for Intern<T> {
-    fn fmt(&self, f: &mut std::fmt::Formatter) -> Result<(), std::fmt::Error> {
-        Pointer::fmt(&self.pointer, f)
-    }
-}
-
 impl<T: Debug> Fits64 for Intern<T> {
     unsafe fn from_u64(x: u64) -> Self {
         Intern { pointer: x as *const T }
     }
     fn to_u64(self) -> u64 {
         self.pointer as u64
-    }
-}
-
-/// The hash implementation for `Intern` returns the hash of the
-/// pointer value, not the hash of the value pointed to.  This should
-/// be irrelevant, since there is a unique pointer for every value,
-/// but it *is* observable, since you could compare the pointer of
-/// `Intern::new(data)` with `data` itself.
-impl<T> Hash for Intern<T> {
-    fn hash<H: Hasher>(&self, state: &mut H) {
-        self.pointer.hash(state);
     }
 }
 
@@ -209,7 +147,6 @@ impl<T> Hash for Intern<T> {
 /// assert_eq!(*x, "hello"); // dereference an ArcIntern like a pointer
 /// ```
 
-#[derive(Eq, PartialEq)]
 pub struct ArcIntern<T: Eq + Hash + Send + 'static> {
     pointer: *const T,
 }
@@ -300,67 +237,128 @@ impl<T: Eq + Hash + Send> Drop for ArcIntern<T> {
     }
 }
 
-impl<T: Eq+Hash+Send> Borrow<T> for ArcIntern<T> {
-    fn borrow(&self) -> &T {
-        self.as_ref()
-    }
-}
-impl<T: Eq+Hash+Send> AsRef<T> for ArcIntern<T> {
-    fn as_ref(&self) -> &T {
-        unsafe { &*self.pointer }
+macro_rules! create_impls {
+    ( $Intern:ident, $testname:ident,
+      [$( $traits:ident ),*], [$( $newtraits:ident ),*] ) => {
+
+        impl<T: $( $traits +)*> AsRef<T> for $Intern<T> {
+            fn as_ref(&self) -> &T {
+                unsafe { &*self.pointer }
+            }
+        }
+        impl<T: $( $traits +)*> Borrow<T> for $Intern<T> {
+            fn borrow(&self) -> &T {
+                self.as_ref()
+            }
+        }
+        impl<T: $( $traits +)*> Deref for $Intern<T> {
+            type Target = T;
+            fn deref(&self) -> &T {
+                self.as_ref()
+            }
+        }
+
+        impl<T: $( $traits +)* Debug> Debug for $Intern<T> {
+            fn fmt(&self, f: &mut std::fmt::Formatter) -> Result<(), std::fmt::Error> {
+                Pointer::fmt(&self.pointer, f)?;
+                f.write_str(" : ")?;
+                self.deref().fmt(f)
+            }
+        }
+        impl<T: $( $traits +)* Display> Display for $Intern<T> {
+            fn fmt(&self, f: &mut std::fmt::Formatter) -> Result<(), std::fmt::Error> {
+                self.deref().fmt(f)
+            }
+        }
+
+        impl<T: $( $traits +)* Clone> Pointer for $Intern<T> {
+            fn fmt(&self, f: &mut std::fmt::Formatter) -> Result<(), std::fmt::Error> {
+                Pointer::fmt(&self.pointer, f)
+            }
+        }
+
+        impl<T: $( $newtraits +)* Default + 'static> Default for $Intern<T> {
+            fn default() -> $Intern<T> {
+                $Intern::new(Default::default())
+            }
+        }
+
+        /// The hash implementation returns the hash of the pointer
+        /// value, not the hash of the value pointed to.  This should
+        /// be irrelevant, since there is a unique pointer for every
+        /// value, but it *is* observable, since you could compare the
+        /// hash of the pointer with hash of the data itself.
+        impl<T: $( $traits +)*> Hash for $Intern<T> {
+            fn hash<H: Hasher>(&self, state: &mut H) {
+                self.pointer.hash(state);
+            }
+        }
+
+        impl<T: $( $traits +)*> PartialEq for $Intern<T> {
+            fn eq(&self, other: &$Intern<T>) -> bool {
+                self.pointer == other.pointer
+            }
+        }
+        impl<T: $( $traits +)*> Eq for $Intern<T> {}
+
+        #[cfg(test)]
+        mod $testname {
+            use super::$Intern;
+            use super::{Borrow,Deref};
+            #[test]
+            fn eq_string() {
+                assert_eq!($Intern::new("hello"), $Intern::new("hello"));
+                assert_ne!($Intern::new("goodbye"), $Intern::new("farewell"));
+            }
+            #[test]
+            fn display() {
+                let world = $Intern::new("world");
+                println!("Hello {}", world);
+            }
+            #[test]
+            fn debug() {
+                let world = $Intern::new("world");
+                println!("Hello {:?}", world);
+            }
+            #[test]
+            fn has_default() {
+                assert_eq!( $Intern::<Option<String>>::default(),
+                            $Intern::<Option<String>>::new(None));
+            }
+            #[test]
+            fn has_borrow() {
+                let x = $Intern::<Option<String>>::default();
+                let b: &Option<String> = x.borrow();
+                assert_eq!( b, $Intern::<Option<String>>::new(None).as_ref());
+            }
+            #[test]
+            fn has_deref() {
+                let x = $Intern::<Option<String>>::default();
+                let b: &Option<String> = x.as_ref();
+                assert_eq!( b, $Intern::<Option<String>>::new(None).deref());
+            }
+        }
     }
 }
 
-impl<T: Eq+Hash+Send> Deref for ArcIntern<T> {
-    type Target = T;
-    fn deref(&self) -> &T {
-        self.borrow()
-    }
-}
+create_impls!(ArcIntern, arcintern_impl_tests, [Eq,Hash,Send], [Clone,Eq,Hash,Send] );
+create_impls!(Intern, intern_impl_tests, [], [Clone,Eq,Hash,Send]);
+create_impls!(LocalIntern, localintern_impl_tests, [], [Clone,Eq,Hash,Send]);
 
-impl<T: Clone + Eq+Hash+Send+Default> Default for ArcIntern<T> {
-    fn default() -> ArcIntern<T> {
-        ArcIntern::new(Default::default())
-    }
-}
-
-impl<T: Clone + Eq+Hash+Send+Debug> Debug for ArcIntern<T> {
-    fn fmt(&self, f: &mut std::fmt::Formatter) -> Result<(), std::fmt::Error> {
-        Pointer::fmt(&self.pointer, f)?;
-        f.write_str(" : ")?;
-        // self.refcount().fmt(f)?;
-        self.deref().fmt(f)
-    }
-}
-
-impl<T: Display+Clone+Eq+Hash+Send> Display for ArcIntern<T> {
-    fn fmt(&self, f: &mut std::fmt::Formatter) -> Result<(), std::fmt::Error> {
-        self.deref().fmt(f)
-    }
-}
-
-impl<T: Clone+Eq+Hash+Send> Pointer for ArcIntern<T> {
-    fn fmt(&self, f: &mut std::fmt::Formatter) -> Result<(), std::fmt::Error> {
-        Pointer::fmt(&self.pointer, f)
-    }
-}
-
-
-/// The hash implementation for `ArcIntern` returns the hash of the
-/// pointer value, not the hash of the value pointed to.  This should
-/// be irrelevant, since there is a unique pointer for every value,
-/// but it *is* observable, since you could compare the pointer of
-/// `ArcIntern::new(data)` with `data` itself.
-impl<T: Eq+Hash+Send> Hash for ArcIntern<T> {
-    fn hash<H: Hasher>(&self, state: &mut H) {
-        self.pointer.hash(state);
-    }
+#[test]
+fn test_arcintern_freeing() {
+    assert_eq!(ArcIntern::new(5), ArcIntern::new(5));
+    assert_eq!(ArcIntern::new(6).num_objects_interned(), 1);
+    assert_eq!(ArcIntern::new(6).num_objects_interned(), 1);
+    assert_eq!(ArcIntern::new(7).num_objects_interned(), 1);
+    let six = ArcIntern::new(6);
+    assert_eq!(ArcIntern::new(7).num_objects_interned(), 2);
+    assert_eq!(ArcIntern::new(6), six);
 }
 
 #[cfg(test)]
 mod tests {
     use super::Intern;
-    use super::ArcIntern;
     #[test]
     fn eq_numbers() {
         assert_eq!(Intern::new(5), Intern::new(5));
@@ -378,39 +376,11 @@ mod tests {
     fn different_strings() {
         assert_ne!(Intern::new("hello"), Intern::new("world"));
     }
-
-    #[test]
-    fn aeq_numbers() {
-        assert_eq!(ArcIntern::new(5), ArcIntern::new(5));
-        assert_eq!(ArcIntern::new(6).num_objects_interned(), 1);
-        assert_eq!(ArcIntern::new(6).num_objects_interned(), 1);
-        assert_eq!(ArcIntern::new(7).num_objects_interned(), 1);
-        let six = ArcIntern::new(6);
-        assert_eq!(ArcIntern::new(7).num_objects_interned(), 2);
-        assert_eq!(ArcIntern::new(6), six);
-    }
-    #[test]
-    fn aeq_strings() {
-        assert_eq!(ArcIntern::new("hello"), ArcIntern::new("hello"));
-        let world = ArcIntern::new("world");
-        println!("Hello {}", world);
-    }
-    #[test]
-    fn adifferent_strings() {
-        assert_ne!(ArcIntern::new("hello"), ArcIntern::new("world"));
-    }
 }
 
 pub struct LocalIntern<T> {
     pointer: *const T,
 }
-
-impl<T> PartialEq for LocalIntern<T> {
-    fn eq(&self, other: &LocalIntern<T>) -> bool {
-        self.pointer == other.pointer
-    }
-}
-impl<T> Eq for LocalIntern<T> {}
 
 impl<T> Clone for LocalIntern<T> {
     fn clone(&self) -> Self {
@@ -451,67 +421,12 @@ impl<T: Clone + Eq + Hash + Send + 'static> LocalIntern<T> {
     }
 }
 
-impl<T> Borrow<T> for LocalIntern<T> {
-    fn borrow(&self) -> &T {
-        self.as_ref()
-    }
-}
-impl<T> AsRef<T> for LocalIntern<T> {
-    fn as_ref(&self) -> &T {
-        unsafe { &*self.pointer }
-    }
-}
-
-impl<T> Deref for LocalIntern<T> {
-    type Target = T;
-    fn deref(&self) -> &T {
-        self.borrow()
-    }
-}
-
-impl<T: Default+Hash+Eq+Clone+Send+'static> Default for LocalIntern<T> {
-    fn default() -> LocalIntern<T> {
-        LocalIntern::new(Default::default())
-    }
-}
-
-impl<T: Debug> Debug for LocalIntern<T> {
-    fn fmt(&self, f: &mut std::fmt::Formatter) -> Result<(), std::fmt::Error> {
-        Pointer::fmt(&self.pointer, f)?;
-        f.write_str(" : ")?;
-        self.deref().fmt(f)
-    }
-}
-
-impl<T: Display> Display for LocalIntern<T> {
-    fn fmt(&self, f: &mut std::fmt::Formatter) -> Result<(), std::fmt::Error> {
-        self.deref().fmt(f)
-    }
-}
-
-impl<T> Pointer for LocalIntern<T> {
-    fn fmt(&self, f: &mut std::fmt::Formatter) -> Result<(), std::fmt::Error> {
-        Pointer::fmt(&self.pointer, f)
-    }
-}
-
 impl<T: Debug> Fits64 for LocalIntern<T> {
     unsafe fn from_u64(x: u64) -> Self {
         LocalIntern { pointer: x as *const T }
     }
     fn to_u64(self) -> u64 {
         self.pointer as u64
-    }
-}
-
-/// The hash implementation for `LocalIntern` returns the hash of the
-/// pointer value, not the hash of the value pointed to.  This should
-/// be irrelevant, since there is a unique pointer for every value,
-/// but it *is* observable, since you could compare the pointer of
-/// `LocalIntern::new(data)` with `data` itself.
-impl<T> Hash for LocalIntern<T> {
-    fn hash<H: Hasher>(&self, state: &mut H) {
-        self.pointer.hash(state);
     }
 }
 
@@ -558,3 +473,4 @@ mod local_tests {
         assert_ne!(ArcIntern::new("hello"), ArcIntern::new("world"));
     }
 }
+
