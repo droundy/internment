@@ -1,5 +1,4 @@
-Internment
-==========
+# Internment &emsp; [![Latest version](https://img.shields.io/crates/v/internment.svg)](https://crates.io/crates/internment) [![Documentation](https://docs.rs/internment/badge.svg)](https://docs.rs/internment)
 
 A very easy to use library for
 [interning](https://en.wikipedia.org/wiki/String_interning)
