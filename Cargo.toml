@@ -8,6 +8,8 @@ license = "MIT/Apache-2.0"
 repository = "https://github.com/droundy/internment"
 
 readme = "README.md"
+categories = ["caching", "memory-management", "concurrency"]
+keywords = ["hash", "interning", "hashconsing", "caching", "sharing", "consing", "interner", "symbol pool"]
 
 [badges]
 

@@ -79,3 +79,13 @@ on the interning of new data as well as changing of reference counts,
 which is probably slower than the other internship crates (unless you
 want to use their tokens across threads, in which case you'd have to
 put the pool in a `Mutex` and pay the same penalty).
+
+Another interning crate which is very similar to `internment` is:
+
+1. [hashconsing](https://crates.io/crates/hashconsing)
+
+The `hashconsing` crate is considerably more complicated in its API
+than `internship`, but generates global pointers in a similar way.
+The `HConsed<T>` data type is always referenced counted with `Arc`,
+which makes it similar to `ArcIntern`, which is less efficient than
+`Intern`, but does not eternally leak memory.
