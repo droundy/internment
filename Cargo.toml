@@ -13,6 +13,9 @@ keywords = ["hash", "interning", "hashconsing", "caching", "sharing", "consing",
 
 [badges]
 
+appveyor = { repository = "droundy/internment" }
+travis-ci = { repository = "droundy/internment" }
+
 is-it-maintained-issue-resolution = { repository = "https://github.com/droundy/internment" }
 is-it-maintained-open-issues = { repository = "https://github.com/droundy/internment" }
 maintenance = { status = "actively-developed" }

@@ -1,4 +1,4 @@
-# Internment &emsp; [![Latest version](https://img.shields.io/crates/v/internment.svg)](https://crates.io/crates/internment) [![Documentation](https://docs.rs/internment/badge.svg)](https://docs.rs/internment)
+# Internment &emsp; [![Latest version](https://img.shields.io/crates/v/internment.svg)](https://crates.io/crates/internment) [![Documentation](https://docs.rs/internment/badge.svg)](https://docs.rs/internment) [![Build Status](https://travis-ci.org/droundy/internment.svg?branch=master)](https://travis-ci.org/droundy/internment) [![Windows Build status](https://ci.appveyor.com/api/projects/status/3dps5r08b5a78fyu?svg=true)](https://ci.appveyor.com/project/droundy/internment)
 
 A very easy to use library for
 [interning](https://en.wikipedia.org/wiki/String_interning)
