@@ -4,9 +4,10 @@ version = "0.2.2"
 authors = ["David Roundy <roundyd@physics.oregonstate.edu>"]
 
 description = "Easy interning of data"
-license = "MPL-2.0"
+license = "MIT/Apache-2.0"
 repository = "https://github.com/droundy/internment"
 
+readme = "README.md"
 
 [dependencies]
 
