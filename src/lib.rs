@@ -378,19 +378,22 @@ thread_local! {
     #[allow(unused)]
     pub static LOCAL_STUFF: RefCell<Vec<Box<Any>>> = RefCell::new(Vec::new());
 }
-// pub fn with_local<F, T, R>(f: F) -> R
-//     where F: FnOnce(&mut T) -> R,
-//           T: Any+Default
-// {
-//     LOCAL_STUFF.with(|v| -> R {
-//         for x in v.borrow_mut().iter() {
-//             if let Some(xx) = x.downcast_mut() {
-//                 return f(xx)
-//             }
-//         }
-//         unimplemented!()
-//     })
-// }
+pub fn with_local<F, T, R>(f: F) -> R
+    where F: FnOnce(&T) -> R,
+          T: Any+Default
+{
+    LOCAL_STUFF.with(|v| -> R {
+        for x in v.borrow_mut().iter() {
+            if let Some(xx) = x.downcast_ref() {
+                return f(xx)
+            }
+        }
+        let b = Box::new(T::default());
+        let r = f(&b);
+        v.borrow_mut().push(b);
+        r
+    })
+}
 
 /// An `LocalIntern` is `Copy`, which is unusal for a pointer.  This
 /// is safe because we never free the data pointed to by an
