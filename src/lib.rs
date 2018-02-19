@@ -160,11 +160,11 @@ unsafe impl<T: Eq+Hash+Send> Sync for ArcIntern<T> {}
 
 #[derive(Debug)]
 struct RcI<T: Hash+Eq+PartialEq> {
-    data: HashMap<T, Box<T>>,
+    data: HashSet<Box<T>>,
     counts: HashMap<Intern<T>, usize>,
 }
 
-impl<T: Clone + Eq + Hash + Send + 'static> ArcIntern<T> {
+impl<T: Eq + Hash + Send + 'static> ArcIntern<T> {
     /// Intern a value.  If this value has not previously been
     /// interned, then `new` will allocate a spot for the value on the
     /// heap.  Otherwise, it will return a pointer to the object
@@ -178,26 +178,29 @@ impl<T: Clone + Eq + Hash + Send + 'static> ArcIntern<T> {
             None => {
                 CONTAINER.set::<Mutex<RcI<T>>>(Mutex::new(
                     RcI {
-                        data: HashMap::<T,Box<T>>::new(),
+                        data: HashSet::<Box<T>>::new(),
                         counts: HashMap::<Intern<T>,usize>::new(),
                     }));
                 CONTAINER.get::<Mutex<RcI<T>>>()
             },
         };
         let mut m = mymutex.lock().unwrap();
-        if m.data.get(&val).is_none() {
-            let b = Box::new(val.clone());
-            let p: *const T = b.borrow();
-            m.counts.insert(Intern { pointer: p }, 1);
-            m.data.insert(val.clone(), b);
-            return ArcIntern { pointer: p };
+        let mut result = None;
+        if let Some(b) = m.data.get(&val) {
+            result = Some( ArcIntern { pointer: b.borrow() } );
+            // need to increment the count for this!
         }
-        let xx = ArcIntern { pointer: m.data.get(&val).unwrap().borrow() };
-        // need to increment the count for this!
-        if let Some(mc) = m.counts.get_mut(&Intern{ pointer: xx.pointer }) {
-            *mc += 1;
+        if let Some(ai) = result {
+            if let Some(mc) = m.counts.get_mut(&Intern{ pointer: ai.pointer }) {
+                *mc += 1;
+            }
+            return ai;
         }
-        xx
+        let b = Box::new(val);
+        let p: *const T = b.borrow();
+        m.counts.insert(Intern { pointer: p }, 1);
+        m.data.insert(b);
+        ArcIntern { pointer: p }
     }
     /// See how many objects have been interned.  This may be helpful
     /// in analyzing memory use.
@@ -235,7 +238,7 @@ impl<T: Eq + Hash + Send> Drop for ArcIntern<T> {
             }
         }
         if am_finished {
-            m.data.remove(self);
+            m.data.remove(&**self);
             m.counts.remove(&Intern{ pointer: self.pointer });
         }
     }
@@ -275,7 +278,7 @@ macro_rules! create_impls {
             }
         }
 
-        impl<T: $( $traits +)* Clone> Pointer for $Intern<T> {
+        impl<T: $( $traits +)*> Pointer for $Intern<T> {
             fn fmt(&self, f: &mut std::fmt::Formatter) -> Result<(), std::fmt::Error> {
                 Pointer::fmt(&self.pointer, f)
             }
