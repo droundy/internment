@@ -348,9 +348,9 @@ macro_rules! create_impls {
     }
 }
 
-create_impls!(ArcIntern, arcintern_impl_tests, [Eq,Hash,Send], [Clone,Eq,Hash,Send] );
-create_impls!(Intern, intern_impl_tests, [], [Clone,Eq,Hash,Send]);
-create_impls!(LocalIntern, localintern_impl_tests, [], [Clone,Eq,Hash,Send]);
+create_impls!(ArcIntern, arcintern_impl_tests, [Eq,Hash,Send], [Eq,Hash,Send] );
+create_impls!(Intern, intern_impl_tests, [], [Eq,Hash,Send]);
+create_impls!(LocalIntern, localintern_impl_tests, [], [Eq,Hash]);
 
 #[test]
 fn test_arcintern_freeing() {
@@ -370,6 +370,28 @@ fn test_intern_num_objects() {
     assert_eq!(Intern::new(7).num_objects_interned(), 3);
 }
 
+
+/// A pointer to a thread-local interned object.
+///
+/// The interned object will be held in memory as long as the thread
+/// is still running.  Thus you can arrange a crude sort of arena
+/// allocation by running code using `LocalIntern` on a temporary
+/// thread.  Lifetime issues are as simple as when using `Intern`.
+/// `LocalIntern` differs in that it is neigher `Send` nor `Share`, so
+/// it cannot be used in a multithreaded manner.  On the benefit side,
+/// it is faster than `Intern`, and the memory can be freed (by
+/// running in a temporary thread).
+///
+/// # Example
+/// ```rust
+/// use internment::LocalIntern;
+///
+/// let x = LocalIntern::new("hello");
+/// let y = LocalIntern::new("world");
+/// assert_ne!(x, y);
+/// assert_eq!(x, LocalIntern::new("hello"));
+/// assert_eq!(*x, "hello"); // dereference a LocalIntern like a pointer
+/// ```
 pub struct LocalIntern<T> {
     pointer: *const T,
 }
@@ -385,17 +407,17 @@ thread_local! {
     pub static LOCAL_STUFF: RefCell<Vec<Box<Any>>> = RefCell::new(Vec::new());
 }
 pub fn with_local<F, T, R>(f: F) -> R
-    where F: FnOnce(&T) -> R,
+    where F: FnOnce(&mut T) -> R,
           T: Any+Default
 {
     LOCAL_STUFF.with(|v| -> R {
-        for x in v.borrow_mut().iter() {
-            if let Some(xx) = x.downcast_ref() {
+        for x in v.borrow_mut().iter_mut() {
+            if let Some(xx) = x.downcast_mut() {
                 return f(xx)
             }
         }
-        let b = Box::new(T::default());
-        let r = f(&b);
+        let mut b = Box::new(T::default());
+        let r = f(&mut b);
         v.borrow_mut().push(b);
         r
     })
@@ -406,7 +428,7 @@ pub fn with_local<F, T, R>(f: F) -> R
 /// `LocalIntern` until the thread itself is destroyed.
 impl<T> Copy for LocalIntern<T> {}
 
-impl<T: Clone + Eq + Hash + Send + 'static> LocalIntern<T> {
+impl<T: Eq + Hash + 'static> LocalIntern<T> {
     /// Intern a value in a thread-local way.  If this value has not
     /// previously been interned, then `new` will allocate a spot for
     /// the value on the heap.  Otherwise, it will return a pointer to
@@ -415,22 +437,22 @@ impl<T: Clone + Eq + Hash + Send + 'static> LocalIntern<T> {
     /// Note that `LocalIntern::new` is a bit slow, since it needs to check
     /// a `HashMap` protected by a `Mutex`.
     pub fn new(val: T) -> LocalIntern<T> {
-        if CONTAINER.try_get_local::<RefCell<HashMap<T,Box<T>>>>().is_none() {
-            CONTAINER.set_local(|| RefCell::new(HashMap::<T,Box<T>>::new()));
-        }
-        let mut m = CONTAINER.get_local::<RefCell<HashMap<T,Box<T>>>>().borrow_mut();
-        if m.get(&val).is_none() {
-            m.insert(val.clone(), Box::new(val.clone()));
-        }
-        LocalIntern { pointer: m.get(&val).unwrap().borrow() }
+        with_local(|m: &mut HashSet<Box<T>>| -> LocalIntern<T> {
+            if let Some(ref b) = m.get(&val) {
+                return LocalIntern { pointer: (*b).borrow() };
+            }
+            let b = Box::new(val);
+            let p: *const T = b.borrow();
+            m.insert(b);
+            LocalIntern { pointer: p }
+        })
     }
     /// See how many objects have been interned.  This may be helpful
     /// in analyzing memory use.
     pub fn num_objects_interned(&self) -> usize {
-        if let Some(m) = CONTAINER.try_get_local::<RefCell<HashMap<T,Box<T>>>>() {
-            return m.borrow().len();
-        }
-        0
+        with_local(|m: &mut HashSet<Box<T>>| -> usize {
+            m.len()
+        })
     }
 }
 
