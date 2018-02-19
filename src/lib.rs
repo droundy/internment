@@ -44,7 +44,7 @@ extern crate tinyset;
 #[macro_use]
 extern crate lazy_static;
 
-use std::collections::HashMap;
+use std::collections::{HashMap, HashSet};
 use std::sync::Mutex;
 use std::cell::RefCell;
 
@@ -95,28 +95,31 @@ impl<T> Copy for Intern<T> {}
 unsafe impl<T> Send for Intern<T> {}
 unsafe impl<T> Sync for Intern<T> {}
 
-impl<T: Clone + Eq + Hash + Send + 'static> Intern<T> {
+impl<T: Eq + Hash + Send + 'static> Intern<T> {
     /// Intern a value.  If this value has not previously been
     /// interned, then `new` will allocate a spot for the value on the
     /// heap.  Otherwise, it will return a pointer to the object
     /// previously allocated.
     ///
     /// Note that `Intern::new` is a bit slow, since it needs to check
-    /// a `HashMap` protected by a `Mutex`.
+    /// a `HashSet` protected by a `Mutex`.
     pub fn new(val: T) -> Intern<T> {
-        if CONTAINER.try_get::<Mutex<HashMap<T,Box<T>>>>().is_none() {
-            CONTAINER.set::<Mutex<HashMap<T,Box<T>>>>(Mutex::new(HashMap::<T,Box<T>>::new()));
+        if CONTAINER.try_get::<Mutex<HashSet<Box<T>>>>().is_none() {
+            CONTAINER.set::<Mutex<HashSet<Box<T>>>>(Mutex::new(HashSet::<Box<T>>::new()));
         }
-        let mut m = CONTAINER.get::<Mutex<HashMap<T,Box<T>>>>().lock().unwrap();
-        if m.get(&val).is_none() {
-            m.insert(val.clone(), Box::new(val.clone()));
+        let mut m = CONTAINER.get::<Mutex<HashSet<Box<T>>>>().lock().unwrap();
+        if let Some(b) = m.get(&val) {
+            return Intern { pointer: b.borrow() };
         }
-        Intern { pointer: m.get(&val).unwrap().borrow() }
+        let b = Box::new(val);
+        let p: *const T = b.borrow();
+        m.insert(b);
+        return Intern { pointer: p };
     }
     /// See how many objects have been interned.  This may be helpful
     /// in analyzing memory use.
     pub fn num_objects_interned(&self) -> usize {
-        if let Some(m) = CONTAINER.try_get::<Mutex<HashMap<T,Box<T>>>>() {
+        if let Some(m) = CONTAINER.try_get::<Mutex<HashSet<Box<T>>>>() {
             return m.lock().unwrap().len();
         }
         0
