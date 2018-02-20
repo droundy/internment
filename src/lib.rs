@@ -132,14 +132,73 @@ impl<T: Eq + Hash + Send + 'static> Intern<T> {
     }
 }
 
+fn heap_location() -> u64 {
+    lazy_static! {
+        static ref HEAP_LOCATION: Box<usize> = Box::new(0);
+    }
+    let p: *const usize = (*HEAP_LOCATION).borrow();
+    p as u64
+}
+fn sz<T>() -> u64 {
+    std::mem::align_of::<T>() as u64
+}
+/// The `Fits64` implementation for `Intern<T>` is designed to
+/// normally give (relatively) small numbers, by XORing with a fixed
+/// pointer that is also on the heap.  This should make the most
+/// significant bits of the resulting u64 be zero, which will mean
+/// that `Set64` (which is space-efficient in storing small integers)
+/// can store this result in fewer than 8 bytes.
 impl<T: Debug> Fits64 for Intern<T> {
     unsafe fn from_u64(x: u64) -> Self {
-        Intern { pointer: x as *const T }
+        Intern { pointer: ((x ^ heap_location()) * sz::<T>()) as *const T }
     }
     fn to_u64(self) -> u64 {
-        self.pointer as u64
+        self.pointer as u64 ^ heap_location() / sz::<T>()
     }
 }
+/// The `Fits64` implementation for `LocalIntern<T>` is designed to
+/// normally give (relatively) small numbers, by XORing with a fixed
+/// pointer that is also on the heap.  This should make the most
+/// significant bits of the resulting u64 be zero, which will mean
+/// that `Set64` (which is space-efficient in storing small integers)
+/// can store this result in fewer than 8 bytes.
+impl<T: Debug> Fits64 for LocalIntern<T> {
+    unsafe fn from_u64(x: u64) -> Self {
+        LocalIntern { pointer: ((x ^ heap_location()) * sz::<T>()) as *const T }
+    }
+    fn to_u64(self) -> u64 {
+        (self.pointer as u64 ^ heap_location()) / sz::<T>()
+    }
+}
+#[test]
+fn test_localintern_set64() {
+    use tinyset::Set64;
+    let mut s = Set64::<LocalIntern<u32>>::new();
+    s.insert(LocalIntern::new(5));
+    s.insert(LocalIntern::new(6));
+    s.insert(LocalIntern::new(6));
+    s.insert(LocalIntern::new(7));
+    assert!(s.contains(LocalIntern::new(5)));
+    assert!(s.contains(LocalIntern::new(6)));
+    assert!(s.contains(LocalIntern::new(7)));
+    assert!(!s.contains(LocalIntern::new(8)));
+    assert_eq!(s.len(), 3);
+}
+#[test]
+fn test_intern_set64() {
+    use tinyset::Set64;
+    let mut s = Set64::<Intern<u32>>::new();
+    s.insert(Intern::new(5));
+    s.insert(Intern::new(6));
+    s.insert(Intern::new(6));
+    s.insert(Intern::new(7));
+    assert!(s.contains(Intern::new(5)));
+    assert!(s.contains(Intern::new(6)));
+    assert!(s.contains(Intern::new(7)));
+    assert!(!s.contains(Intern::new(8)));
+    assert_eq!(s.len(), 3);
+}
+
 
 /// A pointer to a reference-counted interned object.
 ///
@@ -459,15 +518,6 @@ impl<T: Eq + Hash + 'static> LocalIntern<T> {
         with_local(|m: &mut HashSet<Box<T>>| -> usize {
             m.len()
         })
-    }
-}
-
-impl<T: Debug> Fits64 for LocalIntern<T> {
-    unsafe fn from_u64(x: u64) -> Self {
-        LocalIntern { pointer: x as *const T }
-    }
-    fn to_u64(self) -> u64 {
-        self.pointer as u64
     }
 }
 
