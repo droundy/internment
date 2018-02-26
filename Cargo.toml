@@ -1,6 +1,6 @@
 [package]
 name = "internment"
-version = "0.3.2"
+version = "0.3.3"
 authors = ["David Roundy <roundyd@physics.oregonstate.edu>"]
 
 description = "Easy interning of data"
@@ -26,4 +26,4 @@ lazy_static = "1.0"
 
 state = { version = "0.4", features = ["tls"] }
 
-tinyset = "0.2.0"
+tinyset = "^0.2.0"
