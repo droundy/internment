@@ -47,6 +47,10 @@
 extern crate state;
 extern crate tinyset;
 
+#[cfg(test)]
+#[macro_use]
+extern crate quickcheck;
+
 #[macro_use]
 extern crate lazy_static;
 
@@ -150,10 +154,10 @@ fn sz<T>() -> u64 {
 /// can store this result in fewer than 8 bytes.
 impl<T: Debug> Fits64 for Intern<T> {
     unsafe fn from_u64(x: u64) -> Self {
-        Intern { pointer: ((x ^ heap_location()) * sz::<T>()) as *const T }
+        Intern { pointer: ((x ^ heap_location() / sz::<T>()) * sz::<T>() ) as *const T }
     }
     fn to_u64(self) -> u64 {
-        self.pointer as u64 ^ heap_location() / sz::<T>()
+        self.pointer as u64 / sz::<T>() ^ heap_location() / sz::<T>()
     }
 }
 /// The `Fits64` implementation for `LocalIntern<T>` is designed to
@@ -164,10 +168,10 @@ impl<T: Debug> Fits64 for Intern<T> {
 /// can store this result in fewer than 8 bytes.
 impl<T: Debug> Fits64 for LocalIntern<T> {
     unsafe fn from_u64(x: u64) -> Self {
-        LocalIntern { pointer: ((x ^ heap_location()) * sz::<T>()) as *const T }
+        LocalIntern { pointer: ((x ^ heap_location() / sz::<T>()) * sz::<T>() ) as *const T }
     }
     fn to_u64(self) -> u64 {
-        (self.pointer as u64 ^ heap_location()) / sz::<T>()
+        self.pointer as u64 / sz::<T>() ^ heap_location() / sz::<T>()
     }
 }
 #[test]
@@ -543,5 +547,15 @@ fn test_localintern_num_objects() {
     assert_eq!(LocalIntern::new(6).num_objects_interned(), 2);
     assert_eq!(LocalIntern::new(6).num_objects_interned(), 2);
     assert_eq!(LocalIntern::new(7).num_objects_interned(), 3);
+}
+
+#[cfg(test)]
+quickcheck! {
+    fn fits64_localintern(s: String) -> bool {
+        LocalIntern::new(s).test_fits64()
+    }
+    fn fits64_intern(s: String) -> bool {
+        Intern::new(s).test_fits64()
+    }
 }
 

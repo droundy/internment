@@ -27,3 +27,7 @@ lazy_static = "1.0"
 state = { version = "0.4", features = ["tls"] }
 
 tinyset = "^0.2.0"
+
+[dev-dependencies]
+
+quickcheck = "^0.4.1"
