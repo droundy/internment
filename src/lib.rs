@@ -330,13 +330,6 @@ macro_rules! create_impls {
             }
         }
 
-        impl<T: $( $traits +)* Debug> Debug for $Intern<T> {
-            fn fmt(&self, f: &mut std::fmt::Formatter) -> Result<(), std::fmt::Error> {
-                Pointer::fmt(&self.pointer, f)?;
-                f.write_str(" : ")?;
-                self.deref().fmt(f)
-            }
-        }
         impl<T: $( $traits +)* Display> Display for $Intern<T> {
             fn fmt(&self, f: &mut std::fmt::Formatter) -> Result<(), std::fmt::Error> {
                 self.deref().fmt(f)
@@ -416,6 +409,29 @@ macro_rules! create_impls {
 create_impls!(ArcIntern, arcintern_impl_tests, [Eq,Hash,Send], [Eq,Hash,Send] );
 create_impls!(Intern, intern_impl_tests, [], [Eq,Hash,Send]);
 create_impls!(LocalIntern, localintern_impl_tests, [], [Eq,Hash]);
+
+impl<T: Debug> Debug for Intern<T> {
+    fn fmt(&self, f: &mut std::fmt::Formatter) -> Result<(), std::fmt::Error> {
+        std::fmt::Display::fmt(&self.to_u64(), f)?;
+        f.write_str(" : ")?;
+        self.deref().fmt(f)
+    }
+}
+impl<T: Debug> Debug for LocalIntern<T> {
+    fn fmt(&self, f: &mut std::fmt::Formatter) -> Result<(), std::fmt::Error> {
+        std::fmt::Display::fmt(&self.to_u64(), f)?;
+        f.write_str(" : ")?;
+        self.deref().fmt(f)
+    }
+}
+impl<T: Eq+Hash+Send+Debug> Debug for ArcIntern<T> {
+    fn fmt(&self, f: &mut std::fmt::Formatter) -> Result<(), std::fmt::Error> {
+        Pointer::fmt(&self.pointer, f)?;
+        f.write_str(" : ")?;
+        self.deref().fmt(f)
+    }
+}
+
 
 #[test]
 fn test_arcintern_freeing() {
