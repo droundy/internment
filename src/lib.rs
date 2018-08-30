@@ -346,6 +346,11 @@ macro_rules! create_impls {
             }
         }
 
+        impl<T: $( $newtraits +)* 'static> From<T> for $Intern<T> {
+            fn from(t: T) -> Self {
+                $Intern::new(t)
+            }
+        }
         impl<T: $( $newtraits +)* Default + 'static> Default for $Intern<T> {
             fn default() -> $Intern<T> {
                 $Intern::new(Default::default())
@@ -369,6 +374,21 @@ macro_rules! create_impls {
             }
         }
         impl<T: $( $traits +)*> Eq for $Intern<T> {}
+
+        impl<T: $( $traits +)* PartialOrd> PartialOrd for $Intern<T> {
+            fn partial_cmp(&self, other: &Self) -> Option<std::cmp::Ordering> {
+                self.as_ref().partial_cmp(other)
+            }
+            fn lt(&self, other: &Self) -> bool { self.as_ref().lt(other) }
+            fn le(&self, other: &Self) -> bool { self.as_ref().le(other) }
+            fn gt(&self, other: &Self) -> bool { self.as_ref().gt(other) }
+            fn ge(&self, other: &Self) -> bool { self.as_ref().ge(other) }
+        }
+        impl<T: $( $traits +)* Ord> Ord for $Intern<T> {
+            fn cmp(&self, other: &Self) -> std::cmp::Ordering {
+                self.as_ref().cmp(other)
+            }
+        }
 
         #[cfg(test)]
         mod $testname {
