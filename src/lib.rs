@@ -53,6 +53,7 @@ extern crate quickcheck;
 
 #[macro_use]
 extern crate lazy_static;
+extern crate serde;
 
 use std::collections::{HashMap, HashSet};
 use std::sync::Mutex;
@@ -66,6 +67,7 @@ use std::ops::Deref;
 use std::fmt::{Debug, Display, Pointer};
 
 use tinyset::u64set::Fits64;
+use serde::{Serialize, Serializer, Deserialize, Deserializer};
 
 lazy_static! {
     static ref CONTAINER: state::Container = state::Container::new();
@@ -387,6 +389,18 @@ macro_rules! create_impls {
         impl<T: $( $traits +)* Ord> Ord for $Intern<T> {
             fn cmp(&self, other: &Self) -> std::cmp::Ordering {
                 self.as_ref().cmp(other)
+            }
+        }
+
+        impl<T: $( $traits +)* Serialize> Serialize for $Intern<T> {
+            fn serialize<S: Serializer>(&self, serializer: S) -> Result<S::Ok, S::Error> {
+                self.as_ref().serialize(serializer)
+            }
+        }
+
+        impl<'de, T: $( $newtraits +)* 'static + Deserialize<'de>> Deserialize<'de> for $Intern<T> {
+            fn deserialize<D: Deserializer<'de>>(deserializer: D) -> Result<Self, D::Error> {
+                T::deserialize(deserializer).map(|x: T| Self::new(x))
             }
         }
 
