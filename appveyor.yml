@@ -15,9 +15,7 @@ environment:
     - TARGET: x86_64-pc-windows-gnu
 
     # MSVC
-    # I don't know why the following gets an error, but I'm not sure 32-bit
-    # windows using msvc matters much.  So I'm just disabling the test.
-    # - TARGET: i686-pc-windows-msvc
+    - TARGET: i686-pc-windows-msvc
     - TARGET: x86_64-pc-windows-msvc
 
     # Testing other channels
