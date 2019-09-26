@@ -1,6 +1,6 @@
 [package]
 name = "internment"
-version = "0.3.7"
+version = "0.3.8"
 authors = ["David Roundy <roundyd@physics.oregonstate.edu>"]
 
 description = "Easy interning of data"
