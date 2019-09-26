@@ -25,8 +25,8 @@
 //!
 //! 3. `ArcIntern`, which reference-counts your data and frees it when
 //! there are no more references.  `ArcIntern` will keep memory use
-//! down, but requires locking whenever a clone of your pointer is
-//! made, as well as when dropping the pointer.
+//! down, but uses an atomic increment/decrement whenever a clone of
+//! your pointer is made, or a pointer is dropped.
 //!
 //! In each case, accessing your data is a single pointer dereference, and
 //! the size of any internment data structure (`Intern`, `LocalIntern`, or
@@ -55,8 +55,9 @@ extern crate quickcheck;
 extern crate lazy_static;
 extern crate serde;
 
-use std::collections::{HashMap, HashSet};
+use std::collections::{HashSet};
 use std::sync::Mutex;
+use std::sync::atomic::{AtomicUsize, Ordering};
 use std::cell::RefCell;
 
 use std::any::Any;
@@ -205,7 +206,6 @@ fn test_intern_set64() {
     assert_eq!(s.len(), 3);
 }
 
-
 /// A pointer to a reference-counted interned object.
 ///
 /// The interned object will be held in memory only until its
@@ -221,21 +221,46 @@ fn test_intern_set64() {
 /// assert_eq!(x, ArcIntern::new("hello"));
 /// assert_eq!(*x, "hello"); // dereference an ArcIntern like a pointer
 /// ```
-
 pub struct ArcIntern<T: Eq + Hash + Send + 'static> {
-    pointer: *const T,
+    pointer: *const RefCount<T>,
 }
 
 unsafe impl<T: Eq+Hash+Send> Send for ArcIntern<T> {}
 unsafe impl<T: Eq+Hash+Send> Sync for ArcIntern<T> {}
 
 #[derive(Debug)]
-struct RcI<T: Hash+Eq+PartialEq> {
-    data: HashSet<Box<T>>,
-    counts: HashMap<Intern<T>, usize>,
+struct RefCount<T> {
+    count: AtomicUsize,
+    data: T,
+}
+impl<T: Eq> Eq for RefCount<T> {}
+impl<T: PartialEq> PartialEq for RefCount<T> {
+    fn eq(&self, other: &Self) -> bool {
+        self.data == other.data
+    }
+}
+impl<T: Hash> Hash for RefCount<T> {
+    fn hash<H: Hasher>(&self, hasher: &mut H) {
+        self.data.hash(hasher)
+    }
+}
+impl<T> Borrow<T> for Box<RefCount<T>> {
+    fn borrow(&self) -> &T {
+        &self.data
+    }
 }
 
+type Container<T> = Mutex<HashSet<Box<RefCount<T>>>>;
 impl<T: Eq + Hash + Send + 'static> ArcIntern<T> {
+    fn get_mutex() -> &'static Container<T> {
+        match CONTAINER.try_get::<Container<T>>() {
+            Some(m) => m,
+            None => {
+                CONTAINER.set::<Container<T>>(Mutex::new(HashSet::new()));
+                CONTAINER.get::<Container<T>>()
+            },
+        }
+    }
     /// Intern a value.  If this value has not previously been
     /// interned, then `new` will allocate a spot for the value on the
     /// heap.  Otherwise, it will return a pointer to the object
@@ -244,91 +269,76 @@ impl<T: Eq + Hash + Send + 'static> ArcIntern<T> {
     /// Note that `ArcIntern::new` is a bit slow, since it needs to check
     /// a `HashMap` protected by a `Mutex`.
     pub fn new(val: T) -> ArcIntern<T> {
-        let mymutex = match CONTAINER.try_get::<Mutex<RcI<T>>>() {
-            Some(m) => m,
-            None => {
-                CONTAINER.set::<Mutex<RcI<T>>>(Mutex::new(
-                    RcI {
-                        data: HashSet::<Box<T>>::new(),
-                        counts: HashMap::<Intern<T>,usize>::new(),
-                    }));
-                CONTAINER.get::<Mutex<RcI<T>>>()
-            },
-        };
+        let mymutex = Self::get_mutex();
         let mut m = mymutex.lock().unwrap();
-        let mut result = None;
-        if let Some(b) = m.data.get(&val) {
-            result = Some( ArcIntern { pointer: b.borrow() } );
-            // need to increment the count for this!
+        if let Some(b) = m.get(&val) {
+            // First increment the count.  We can use relaxed ordering
+            // here because we are holding the mutex, which has its
+            // own barriers.
+            b.count.fetch_add(1, Ordering::Relaxed);
+            // then return the value
+            return ArcIntern { pointer: b.borrow() };
         }
-        if let Some(ai) = result {
-            if let Some(mc) = m.counts.get_mut(&Intern{ pointer: ai.pointer }) {
-                *mc += 1;
-            }
-            return ai;
-        }
-        let b = Box::new(val);
-        let p: *const T = b.borrow();
-        m.counts.insert(Intern { pointer: p }, 1);
-        m.data.insert(b);
-        ArcIntern { pointer: p }
+        let b = Box::new(RefCount { count: AtomicUsize::new(1), data: val });
+        let p = ArcIntern { pointer: b.borrow() };
+        m.insert(b);
+        p
     }
     /// See how many objects have been interned.  This may be helpful
     /// in analyzing memory use.
     pub fn num_objects_interned(&self) -> usize {
-        if let Some(m) = CONTAINER.try_get::<Mutex<RcI<T>>>() {
-            return m.lock().unwrap().data.len();
+        if let Some(m) = CONTAINER.try_get::<Container<T>>() {
+            return m.lock().unwrap().len();
         }
         0
     }
     /// Return the number of counts for this pointer.
     pub fn refcount(&self) -> usize {
-        let m = CONTAINER.get::<Mutex<RcI<T>>>().lock().unwrap();
-        *m.counts.get(&Intern{ pointer: self.pointer }).unwrap()
+        unsafe { (*self.pointer).count.load(Ordering::Acquire) }
     }
 }
 
 impl<T: Eq + Hash + Send + 'static> Clone for ArcIntern<T> {
     fn clone(&self) -> Self {
-        let mut m = CONTAINER.get::<Mutex<RcI<T>>>().lock().unwrap();
-        if let Some(mc) = m.counts.get_mut(&Intern{ pointer: self.pointer }) {
-            *mc += 1;
-        }
+        // First increment the count.
+        unsafe { (*self.pointer).count.fetch_add(1, Ordering::AcqRel) };
         ArcIntern { pointer: self.pointer }
     }
 }
 
 impl<T: Eq + Hash + Send> Drop for ArcIntern<T> {
     fn drop(&mut self) {
-        // removed is declared before m, so the mutex guard will be
-        // dropped *before* the removed content is dropped, since it
-        // might need to lock the mutex.
-        let mut removed;
-        let mut m = CONTAINER.get::<Mutex<RcI<T>>>().lock().unwrap();
-        let mut am_finished = false;
-        if let Some(mc) = m.counts.get_mut(&Intern{ pointer: self.pointer }) {
-            *mc -= 1;
-            if *mc == 0 {
-                am_finished = true;
-            }
-        }
-
-        if am_finished {
-            removed = m.data.take(&**self);
-            m.counts.remove(&Intern{ pointer: self.pointer });
+        let count_was = unsafe { (*self.pointer).count.fetch_sub(1, Ordering::AcqRel) };
+        if count_was == 1 {
+            // removed is declared before m, so the mutex guard will be
+            // dropped *before* the removed content is dropped, since it
+            // might need to lock the mutex.
+            let mut _removed;
+            let mut m = Self::get_mutex().lock().unwrap();
+            _removed = m.take(self.as_ref());
         }
     }
 }
 
+impl<T: Send + Hash + Eq> AsRef<T> for ArcIntern<T> {
+    fn as_ref(&self) -> &T {
+        unsafe { &(*self.pointer).data }
+    }
+}
+impl<T> AsRef<T> for Intern<T> {
+    fn as_ref(&self) -> &T {
+        unsafe { &*self.pointer }
+    }
+}
+impl<T> AsRef<T> for LocalIntern<T> {
+    fn as_ref(&self) -> &T {
+        unsafe { &*self.pointer }
+    }
+}
 macro_rules! create_impls {
     ( $Intern:ident, $testname:ident,
       [$( $traits:ident ),*], [$( $newtraits:ident ),*] ) => {
 
-        impl<T: $( $traits +)*> AsRef<T> for $Intern<T> {
-            fn as_ref(&self) -> &T {
-                unsafe { &*self.pointer }
-            }
-        }
         impl<T: $( $traits +)*> Borrow<T> for $Intern<T> {
             fn borrow(&self) -> &T {
                 self.as_ref()
