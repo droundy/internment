@@ -300,6 +300,10 @@ impl<T: Eq + Hash + Send + 'static> Clone for ArcIntern<T> {
 
 impl<T: Eq + Hash + Send> Drop for ArcIntern<T> {
     fn drop(&mut self) {
+        // removed is declared before m, so the mutex guard will be
+        // dropped *before* the removed content is dropped, since it
+        // might need to lock the mutex.
+        let mut removed;
         let mut m = CONTAINER.get::<Mutex<RcI<T>>>().lock().unwrap();
         let mut am_finished = false;
         if let Some(mc) = m.counts.get_mut(&Intern{ pointer: self.pointer }) {
@@ -309,15 +313,10 @@ impl<T: Eq + Hash + Send> Drop for ArcIntern<T> {
             }
         }
 
-        let mut removed = None;
         if am_finished {
             removed = m.data.take(&**self);
             m.counts.remove(&Intern{ pointer: self.pointer });
         }
-        // make sure that mutex is released before contained value is dropped
-        // this prevents deadlock in the case of a recursive enum
-        std::mem::drop(m);
-        std::mem::drop(removed);
     }
 }
 
