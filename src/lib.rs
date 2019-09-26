@@ -523,7 +523,7 @@ fn test_arcintern_nested_drop() {
         Successor(ArcIntern<Nat>)
     }
     let zero = ArcIntern::new(Nat::Zero);
-    let one = ArcIntern::new(Nat::Successor(zero));
+    let _one = ArcIntern::new(Nat::Successor(zero));
 }
 
 #[test]
@@ -568,7 +568,7 @@ impl<T> Clone for LocalIntern<T> {
 
 thread_local! {
     #[allow(unused)]
-    pub static LOCAL_STUFF: RefCell<Vec<Box<Any>>> = RefCell::new(Vec::new());
+    pub static LOCAL_STUFF: RefCell<Vec<Box<dyn Any>>> = RefCell::new(Vec::new());
 }
 pub fn with_local<F, T, R>(f: F) -> R
     where F: FnOnce(&mut T) -> R,

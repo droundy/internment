@@ -20,8 +20,8 @@ plus side, it is faster to create a `LocalIntern` than an `Intern`.
 
 3. `ArcIntern`, which reference-counts your data and frees it when
 there are no more references.  `ArcIntern` will keep memory use
-down, but requires locking whenever a clone of your pointer is
-made, as well as when dropping the pointer.
+down, but uses an atomic increment/decrement whenever a clone of
+your pointer is made, or a pointer is dropped.
 
 In each case, accessing your data is a single pointer dereference, and
 the size of any internment data structure (`Intern`, `LocalIntern`, or
