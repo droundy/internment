@@ -308,10 +308,16 @@ impl<T: Eq + Hash + Send> Drop for ArcIntern<T> {
                 am_finished = true;
             }
         }
+
+        let mut removed = None;
         if am_finished {
-            m.data.remove(&**self);
+            removed = m.data.take(&**self);
             m.counts.remove(&Intern{ pointer: self.pointer });
         }
+        // make sure that mutex is released before contained value is dropped
+        // this prevents deadlock in the case of a recursive enum
+        std::mem::drop(m);
+        std::mem::drop(removed);
     }
 }
 
@@ -481,6 +487,18 @@ fn test_arcintern_freeing() {
     assert_eq!(ArcIntern::new(7).num_objects_interned(), 2);
     assert_eq!(ArcIntern::new(6), six);
 }
+
+#[test]
+fn test_arcintern_nested_drop() {
+    #[derive(PartialEq, Eq, Hash)]
+    enum Nat {
+        Zero,
+        Successor(ArcIntern<Nat>)
+    }
+    let zero = ArcIntern::new(Nat::Zero);
+    let one = ArcIntern::new(Nat::Successor(zero));
+}
+
 #[test]
 fn test_intern_num_objects() {
     assert_eq!(Intern::new(5), Intern::new(5));
