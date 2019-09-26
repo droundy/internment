@@ -44,16 +44,10 @@
 //! assert_ne!(x, y);
 //! ```
 
-extern crate state;
-extern crate tinyset;
-
 #[cfg(test)]
-#[macro_use]
-extern crate quickcheck;
+use quickcheck::quickcheck;
 
-#[macro_use]
-extern crate lazy_static;
-extern crate serde;
+use lazy_static::lazy_static;
 
 use std::collections::{HashSet};
 use std::sync::Mutex;
