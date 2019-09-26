@@ -300,16 +300,34 @@ impl<T: Eq + Hash + Send + 'static> ArcIntern<T> {
 
 impl<T: Eq + Hash + Send + 'static> Clone for ArcIntern<T> {
     fn clone(&self) -> Self {
-        // First increment the count.
-        unsafe { (*self.pointer).count.fetch_add(1, Ordering::AcqRel) };
+        // First increment the count.  Using a relaxed ordering is
+        // alright here, as knowledge of the original reference
+        // prevents other threads from erroneously deleting the
+        // object.  (See `std::sync::Arc` documentation for more
+        // explanation.)
+        unsafe { (*self.pointer).count.fetch_add(1, Ordering::Relaxed) };
         ArcIntern { pointer: self.pointer }
     }
 }
 
 impl<T: Eq + Hash + Send> Drop for ArcIntern<T> {
     fn drop(&mut self) {
-        let count_was = unsafe { (*self.pointer).count.fetch_sub(1, Ordering::AcqRel) };
+        // (Quoting from std::sync::Arc again): Because `fetch_sub` is
+        // already atomic, we do not need to synchronize with other
+        // threads unless we are going to delete the object. This same
+        // logic applies to the below `fetch_sub` to the `weak` count.
+        let count_was = unsafe { (*self.pointer).count.fetch_sub(1, Ordering::Release) };
         if count_was == 1 {
+            // (Quoting from std::sync::Arc again): This fence is
+            // needed to prevent reordering of use of the data and
+            // deletion of the data.  Because it is marked `Release`,
+            // the decreasing of the reference count synchronizes with
+            // this `Acquire` fence. This means that use of the data
+            // happens before decreasing the reference count, which
+            // happens before this fence, which happens before the
+            // deletion of the data.
+            std::sync::atomic::fence(Ordering::Acquire);
+
             // removed is declared before m, so the mutex guard will be
             // dropped *before* the removed content is dropped, since it
             // might need to lock the mutex.
