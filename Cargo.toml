@@ -31,3 +31,9 @@ serde = "1.0"
 [dev-dependencies]
 
 quickcheck = "^0.4.1"
+easybench = { version = "1.0.0", git = "https://github.com/droundy/easybench-rs" }
+rand = "0.7.2"
+
+[[bench]]
+name = "bench"
+harness = false

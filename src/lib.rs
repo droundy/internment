@@ -111,10 +111,13 @@ impl<T: Eq + Hash + Send + 'static> Intern<T> {
     /// Note that `Intern::new` is a bit slow, since it needs to check
     /// a `HashSet` protected by a `Mutex`.
     pub fn new(val: T) -> Intern<T> {
-        if CONTAINER.try_get::<Mutex<HashSet<Box<T>>>>().is_none() {
-            CONTAINER.set::<Mutex<HashSet<Box<T>>>>(Mutex::new(HashSet::<Box<T>>::new()));
-        }
-        let mut m = CONTAINER.get::<Mutex<HashSet<Box<T>>>>().lock().unwrap();
+        let mut m = match CONTAINER.try_get::<Mutex<HashSet<Box<T>>>>() {
+            Some(m) => m,
+            None => {
+                CONTAINER.set::<Mutex<HashSet<Box<T>>>>(Mutex::new(HashSet::<Box<T>>::new()));
+                CONTAINER.get::<Mutex<HashSet<Box<T>>>>()
+            },
+        }.lock().unwrap();
         if let Some(b) = m.get(&val) {
             return Intern { pointer: b.borrow() };
         }
