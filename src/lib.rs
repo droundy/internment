@@ -61,7 +61,7 @@ use std::convert::AsRef;
 use std::ops::Deref;
 use std::fmt::{Debug, Display, Pointer};
 
-use tinyset::u64set::Fits64;
+use tinyset::Fits64;
 use serde::{Serialize, Serializer, Deserialize, Deserializer};
 
 lazy_static! {
@@ -625,10 +625,12 @@ fn test_localintern_num_objects() {
 #[cfg(test)]
 quickcheck! {
     fn fits64_localintern(s: String) -> bool {
-        LocalIntern::new(s).test_fits64()
+        tinyset::set64::test_fits64(LocalIntern::new(s));
+        true
     }
     fn fits64_intern(s: String) -> bool {
-        Intern::new(s).test_fits64()
+        tinyset::set64::test_fits64(Intern::new(s));
+        true
     }
 }
 
