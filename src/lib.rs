@@ -60,6 +60,7 @@ use std::borrow::Borrow;
 use std::convert::AsRef;
 use std::ops::Deref;
 use std::fmt::{Debug, Display, Pointer};
+use std::marker::PhantomData;
 
 use tinyset::Fits64;
 use serde::{Serialize, Serializer, Deserialize, Deserializer};
@@ -637,3 +638,111 @@ quickcheck! {
     }
 }
 
+pub struct InternTable<T> {
+    vals: HashSet<Box<T>>,
+}
+
+impl<T: Eq + Hash> InternTable<T> {
+    pub fn intern<'a>(&'a mut self, val: T) -> EntryIntern<'a, T> {
+        EntryIntern {
+            pointer: if let Some(ref b) = self.vals.get(&val) {
+                (*b).borrow()
+            } else {
+                let b = Box::new(val);
+                let p: *const T = b.borrow();
+                self.vals.insert(b);
+                p
+            },
+            _phantom: PhantomData,
+        }
+    }
+
+    pub fn num_objects_interned(&self) -> usize {
+        self.vals.len()
+    }
+}
+
+pub struct EntryIntern<'a, T> {
+    pointer: *const T,
+    _phantom: PhantomData<&'a ()>,
+}
+
+impl<'a, T> Clone for EntryIntern<'a, T> {
+    fn clone(&self) -> Self {
+        EntryIntern { pointer: self.pointer, _phantom: PhantomData }
+    }
+}
+
+impl<'a, T> AsRef<T> for EntryIntern<'a, T> {
+    fn as_ref(&self) -> &T {
+        unsafe { &*self.pointer }
+    }
+}
+
+impl<'a, T> Borrow<T> for EntryIntern<'a, T> {
+    fn borrow(&self) -> &T {
+        self.as_ref()
+    }
+}
+
+impl<'a, T> Deref for EntryIntern<'a, T> {
+    type Target = T;
+    fn deref(&self) -> &T {
+        self.as_ref()
+    }
+}
+
+impl<'a, T: Display> Display for EntryIntern<'a, T> {
+    fn fmt(&self, f: &mut std::fmt::Formatter) -> Result<(), std::fmt::Error> {
+        self.deref().fmt(f)
+    }
+}
+
+impl<'a, T> Pointer for EntryIntern<'a, T> {
+    fn fmt(&self, f: &mut std::fmt::Formatter) -> Result<(), std::fmt::Error> {
+        Pointer::fmt(&self.pointer, f)
+    }
+}
+
+/// The hash implementation returns the hash of the pointer
+/// value, not the hash of the value pointed to.  This should
+/// be irrelevant, since there is a unique pointer for every
+/// value, but it *is* observable, since you could compare the
+/// hash of the pointer with hash of the data itself.
+impl<'a, T> Hash for EntryIntern<'a, T> {
+    /// Note that the same values interned in different tables will not have the same hash.
+    fn hash<H: Hasher>(&self, state: &mut H) {
+        self.pointer.hash(state);
+    }
+}
+
+impl<'a, T> PartialEq for EntryIntern<'a, T> {
+    /// Note that the same values interned in different tables are not considered equal.
+    fn eq(&self, other: &Self) -> bool {
+        self.pointer == other.pointer
+    }
+}
+
+impl<'a, T> Eq for EntryIntern<'a, T> {}
+
+impl<'a, T: PartialOrd> PartialOrd for EntryIntern<'a, T> {
+    fn partial_cmp(&self, other: &Self) -> Option<std::cmp::Ordering> {
+        self.as_ref().partial_cmp(other)
+    }
+    fn lt(&self, other: &Self) -> bool { self.as_ref().lt(other) }
+    fn le(&self, other: &Self) -> bool { self.as_ref().le(other) }
+    fn gt(&self, other: &Self) -> bool { self.as_ref().gt(other) }
+    fn ge(&self, other: &Self) -> bool { self.as_ref().ge(other) }
+}
+
+impl<'a, T: Ord> Ord for EntryIntern<'a, T> {
+    fn cmp(&self, other: &Self) -> std::cmp::Ordering {
+        self.as_ref().cmp(other)
+    }
+}
+
+impl<'a, T: Serialize> Serialize for EntryIntern<'a, T> {
+    fn serialize<S: Serializer>(&self, serializer: S) -> Result<S::Ok, S::Error> {
+        self.as_ref().serialize(serializer)
+    }
+}
