@@ -272,7 +272,16 @@ impl<T: Eq + Hash + Send + 'static> ArcIntern<T> {
             // First increment the count.  We can use relaxed ordering
             // here because we are holding the mutex, which has its
             // own barriers.
-            b.count.fetch_add(1, Ordering::Relaxed);
+            let oldval = b.count.fetch_add(1, Ordering::Relaxed);
+            if oldval == 0 {
+                // This means that the last edition of this thing was about to be freed.
+                // Or at least would be freed if we let it.  I couldn't come up with a
+                // better solution than to leak the memory by incrementing twice the count.
+                // This prevents it ever from being freed, which is sort of a bummer, but
+                // then again, this is already something that we know was already needed
+                // once when it was about to be freed.
+                b.count.fetch_add(1, Ordering::Relaxed);
+            }
             // then return the value
             return ArcIntern { pointer: b.borrow() };
         }
@@ -328,8 +337,15 @@ impl<T: Eq + Hash + Send> Drop for ArcIntern<T> {
             // removed is declared before m, so the mutex guard will be
             // dropped *before* the removed content is dropped, since it
             // might need to lock the mutex.
-            let mut _removed;
+            let _removed;
             let mut m = Self::get_mutex().lock().unwrap();
+            let count_is = unsafe { (*self.pointer).count.load(Ordering::SeqCst) };
+            if count_is > 0 {
+                // It looks like someone called new and got a reference to this thing while we were
+                // waiting for the Mutex.  So we won't want to free it after all, since it is still
+                // needed.
+                return;
+            }
             _removed = m.take(self.as_ref());
         }
     }
