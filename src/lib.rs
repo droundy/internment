@@ -103,6 +103,15 @@ unsafe impl<T> Send for Intern<T> {}
 unsafe impl<T> Sync for Intern<T> {}
 
 impl<T: Eq + Hash + Send + 'static> Intern<T> {
+    fn get_mutex() -> &'static Mutex<HashSet<Box<T>>> {
+        match CONTAINER.try_get::<Mutex<HashSet<Box<T>>>>() {
+            Some(m) => m,
+            None => {
+                CONTAINER.set::<Mutex<HashSet<Box<T>>>>(Mutex::new(HashSet::new()));
+                CONTAINER.get::<Mutex<HashSet<Box<T>>>>()
+            },
+        }
+    }
     /// Intern a value.  If this value has not previously been
     /// interned, then `new` will allocate a spot for the value on the
     /// heap.  Otherwise, it will return a pointer to the object
@@ -111,13 +120,7 @@ impl<T: Eq + Hash + Send + 'static> Intern<T> {
     /// Note that `Intern::new` is a bit slow, since it needs to check
     /// a `HashSet` protected by a `Mutex`.
     pub fn new(val: T) -> Intern<T> {
-        let mut m = match CONTAINER.try_get::<Mutex<HashSet<Box<T>>>>() {
-            Some(m) => m,
-            None => {
-                CONTAINER.set::<Mutex<HashSet<Box<T>>>>(Mutex::new(HashSet::<Box<T>>::new()));
-                CONTAINER.get::<Mutex<HashSet<Box<T>>>>()
-            },
-        }.lock().unwrap();
+        let mut m = Self::get_mutex().lock().unwrap();
         if let Some(b) = m.get(&val) {
             return Intern { pointer: b.borrow() };
         }
