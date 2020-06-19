@@ -224,10 +224,43 @@ fn test_intern_set64() {
 pub struct ArcIntern<T: Eq + Hash + Send + 'static> {
     pointer: *const RefCount<T>,
 }
+pub struct Arc<T: Eq + Hash + Send + 'static> {
+    pointer: *const RefCount<T>,
+}
 
 unsafe impl<T: Eq+Hash+Send> Send for ArcIntern<T> {}
-unsafe impl<T: Eq+Hash+Send> Sync for ArcIntern<T> {}
+unsafe impl<T: Eq+Hash+Send+Sync> Sync for ArcIntern<T> {}
 
+unsafe impl<T: Eq+Hash+Send> Send for Arc<T> {}
+unsafe impl<T: Eq+Hash+Send+Sync> Sync for Arc<T> {}
+
+impl<T: Eq+Hash+Send> PartialEq for Arc<T> {
+    fn eq(&self, other: &Self) -> bool {
+        self.as_ref().eq(&*other)
+    }
+  }
+impl<T: Eq+Hash+Send> Hash for Arc<T> {
+  fn hash<H: std::hash::Hasher>(&self, h: &mut H) {
+      self.as_ref().hash(h)
+  }
+}
+impl<T: Eq+Hash+Send> Eq for Arc<T> {}
+impl<T: Eq+Hash+Send> AsRef<T> for Arc<T> {
+    fn as_ref(&self) -> &T {
+        unsafe { &(*self.pointer).data }
+    }
+}
+impl<T: Eq+Hash+Send> Borrow<T> for Arc<T> {
+    fn borrow(&self) -> &T {
+        self.as_ref()
+    }
+}
+impl<T: Eq+Hash+Send> Deref for Arc<T> {
+    type Target = T;
+    fn deref(&self) -> &T {
+        self.as_ref()
+    }
+}
 #[derive(Debug)]
 struct RefCount<T> {
     count: AtomicUsize,
@@ -250,7 +283,7 @@ impl<T> Borrow<T> for Box<RefCount<T>> {
     }
 }
 
-type Container<T> = Mutex<HashSet<Box<RefCount<T>>>>;
+type Container<T> = Mutex<HashSet<Arc<T>>>;
 impl<T: Eq + Hash + Send + 'static> ArcIntern<T> {
     fn get_mutex() -> &'static Container<T> {
         match CONTAINER.try_get::<Container<T>>() {
@@ -272,25 +305,11 @@ impl<T: Eq + Hash + Send + 'static> ArcIntern<T> {
         let mymutex = Self::get_mutex();
         let mut m = mymutex.lock().unwrap();
         if let Some(b) = m.get(&val) {
-            // First increment the count.  We can use relaxed ordering
-            // here because we are holding the mutex, which has its
-            // own barriers.
-            let oldval = b.count.fetch_add(1, Ordering::Relaxed);
-            if oldval == 0 {
-                // This means that the last edition of this thing was about to be freed.
-                // Or at least would be freed if we let it.  I couldn't come up with a
-                // better solution than to leak the memory by incrementing twice the count.
-                // This prevents it ever from being freed, which is sort of a bummer, but
-                // then again, this is already something that we know was already needed
-                // once when it was about to be freed.
-                b.count.fetch_add(1, Ordering::Relaxed);
-            }
-            // then return the value
-            return ArcIntern { pointer: b.borrow() };
+            return b.clone_to_interned();
         }
-        let b = Box::new(RefCount { count: AtomicUsize::new(1), data: val });
-        let p = ArcIntern { pointer: b.borrow() };
-        m.insert(b);
+        let ptr = Box::leak(Box::new(RefCount { count: AtomicUsize::new(2), data: val }));
+        let p = ArcIntern { pointer: ptr };
+        m.insert(Arc { pointer: ptr });
         p
     }
     /// See how many objects have been interned.  This may be helpful
@@ -303,12 +322,35 @@ impl<T: Eq + Hash + Send + 'static> ArcIntern<T> {
     }
     /// Return the number of counts for this pointer.
     pub fn refcount(&self) -> usize {
-        unsafe { (*self.pointer).count.load(Ordering::Acquire) }
+        unsafe { (*self.pointer).count.load(Ordering::Relaxed) }
     }
 }
 
 impl<T: Eq + Hash + Send + 'static> Clone for ArcIntern<T> {
     fn clone(&self) -> Self {
+        // First increment the count.  Using a relaxed ordering is
+        // alright here, as knowledge of the original reference
+        // prevents other threads from erroneously deleting the
+        // object.  (See `std::sync::Arc` documentation for more
+        // explanation.)
+        unsafe { (*self.pointer).count.fetch_add(1, Ordering::Relaxed) };
+        ArcIntern { pointer: self.pointer }
+    }
+}
+
+impl<T: Eq + Hash + Send + 'static> Clone for Arc<T> {
+    fn clone(&self) -> Self {
+        // First increment the count.  Using a relaxed ordering is
+        // alright here, as knowledge of the original reference
+        // prevents other threads from erroneously deleting the
+        // object.  (See `std::sync::Arc` documentation for more
+        // explanation.)
+        unsafe { (*self.pointer).count.fetch_add(1, Ordering::Relaxed) };
+        Arc { pointer: self.pointer }
+    }
+}
+impl<T: Eq + Hash + Send + 'static> Arc<T> {
+    fn clone_to_interned(&self) -> ArcIntern<T> {
         // First increment the count.  Using a relaxed ordering is
         // alright here, as knowledge of the original reference
         // prevents other threads from erroneously deleting the
@@ -326,6 +368,50 @@ impl<T: Eq + Hash + Send> Drop for ArcIntern<T> {
         // threads unless we are going to delete the object. This same
         // logic applies to the below `fetch_sub` to the `weak` count.
         let count_was = unsafe { (*self.pointer).count.fetch_sub(1, Ordering::Release) };
+        if count_was == 2 {
+            // Looks like we are ready to remove from the HashSet.  Ourselves and the
+            // HashSet hold the only two pointers to this datum.
+            let _removed: Arc<T>; // Free the pointer *after* releasing the Mutex.
+            let mut m = Self::get_mutex().lock().unwrap();
+            // We shouldn't need to be more stringent than relaxed ordering below,
+            // since we are holding a Mutex.
+            let count_is = unsafe { (*self.pointer).count.load(Ordering::Relaxed) };
+            if count_is == 1 {
+                // Here we check the count again in case the pointer was added while
+                // we waited for the Mutex.  The count cannot *increase* in a racy way
+                // because that would require either that there be another copy of the
+                // ArcIntern (which we know doesn't exist because of the count) or 
+                // someone holding the Mutex.
+                if let Some(interned) = m.take(self.as_ref()) {
+                    assert_eq!(self.pointer, interned.pointer);
+                    _removed = interned;
+                    // if interned.pointer != self.pointer {
+                    //     m.insert(interned);
+                    // }
+                }
+            }
+        } else if count_was == 1 {
+            // (Quoting from std::sync::Arc again): This fence is
+            // needed to prevent reordering of use of the data and
+            // deletion of the data.  Because it is marked `Release`,
+            // the decreasing of the reference count synchronizes with
+            // this `Acquire` fence. This means that use of the data
+            // happens before decreasing the reference count, which
+            // happens before this fence, which happens before the
+            // deletion of the data.
+            std::sync::atomic::fence(Ordering::Acquire);
+            let _removed = unsafe { Box::from_raw(self.pointer as *mut RefCount<T>) };
+        }
+    }
+}
+
+impl<T: Eq + Hash + Send> Drop for Arc<T> {
+    fn drop(&mut self) {
+        // (Quoting from std::sync::Arc again): Because `fetch_sub` is
+        // already atomic, we do not need to synchronize with other
+        // threads unless we are going to delete the object. This same
+        // logic applies to the below `fetch_sub` to the `weak` count.
+        let count_was = unsafe { (*self.pointer).count.fetch_sub(1, Ordering::Release) };
         if count_was == 1 {
             // (Quoting from std::sync::Arc again): This fence is
             // needed to prevent reordering of use of the data and
@@ -336,20 +422,7 @@ impl<T: Eq + Hash + Send> Drop for ArcIntern<T> {
             // happens before this fence, which happens before the
             // deletion of the data.
             std::sync::atomic::fence(Ordering::Acquire);
-
-            // removed is declared before m, so the mutex guard will be
-            // dropped *before* the removed content is dropped, since it
-            // might need to lock the mutex.
-            let _removed;
-            let mut m = Self::get_mutex().lock().unwrap();
-            let count_is = unsafe { (*self.pointer).count.load(Ordering::SeqCst) };
-            if count_is > 0 {
-                // It looks like someone called new and got a reference to this thing while we were
-                // waiting for the Mutex.  So we won't want to free it after all, since it is still
-                // needed.
-                return;
-            }
-            _removed = m.take(self.as_ref());
+            let _removed = unsafe { Box::from_raw(self.pointer as *mut RefCount<T>) };
         }
     }
 }
@@ -613,9 +686,6 @@ impl<T: Eq + Hash + 'static> LocalIntern<T> {
     /// previously been interned, then `new` will allocate a spot for
     /// the value on the heap.  Otherwise, it will return a pointer to
     /// the object previously allocated.
-    ///
-    /// Note that `LocalIntern::new` is a bit slow, since it needs to check
-    /// a `HashMap` protected by a `Mutex`.
     pub fn new(val: T) -> LocalIntern<T> {
         with_local(|m: &mut HashSet<Box<T>>| -> LocalIntern<T> {
             if let Some(ref b) = m.get(&val) {
