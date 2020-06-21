@@ -85,6 +85,18 @@ lazy_static! {
 /// assert_eq!(x, Intern::new("hello"));
 /// assert_eq!(*x, "hello"); // dereference an Intern like a pointer
 /// ```
+///
+/// # Example with owned `String` data
+///
+/// ```rust
+/// use internment::Intern;
+///
+/// let x = Intern::new("hello".to_string());
+/// let y = Intern::<String>::from("world");
+/// assert_ne!(x, y);
+/// assert_eq!(x, Intern::from("hello"));
+/// assert_eq!(&*x, "hello"); // dereference a Intern like a pointer
+/// ```
 
 pub struct Intern<T> {
     pointer: *const T,
@@ -236,6 +248,18 @@ fn test_intern_set64() {
 /// assert_ne!(x, y);
 /// assert_eq!(x, ArcIntern::new("hello"));
 /// assert_eq!(*x, "hello"); // dereference an ArcIntern like a pointer
+/// ```
+///
+/// # Example with owned `String` data
+///
+/// ```rust
+/// use internment::ArcIntern;
+///
+/// let x = ArcIntern::new("hello".to_string());
+/// let y = ArcIntern::<String>::from("world");
+/// assert_ne!(x, y);
+/// assert_eq!(x, ArcIntern::from("hello"));
+/// assert_eq!(&*x, "hello"); // dereference an ArcIntern like a pointer
 /// ```
 pub struct ArcIntern<T: Eq + Hash + Send + 'static> {
     pointer: *const RefCount<T>,
@@ -685,6 +709,18 @@ fn test_intern_num_objects() {
 /// assert_ne!(x, y);
 /// assert_eq!(x, LocalIntern::new("hello"));
 /// assert_eq!(*x, "hello"); // dereference a LocalIntern like a pointer
+/// ```
+///
+/// # Example with owned `String` data
+///
+/// ```rust
+/// use internment::LocalIntern;
+///
+/// let x = LocalIntern::new("hello".to_string());
+/// let y = LocalIntern::<String>::from("world");
+/// assert_ne!(x, y);
+/// assert_eq!(x, LocalIntern::from("hello"));
+/// assert_eq!(&*x, "hello"); // dereference a LocalIntern like a pointer
 /// ```
 pub struct LocalIntern<T> {
     pointer: *const T,
