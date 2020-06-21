@@ -65,6 +65,17 @@ fn main() {
             "Intern<String>::new {}",
             bench_gen_env(|| s1.clone(), mkset)
         );
+        fn mksetfrom(s: &mut HashSet<String>) -> HashSet<Intern<String>> {
+            let mut n = HashSet::new();
+            for x in s.iter() {
+                n.insert(Intern::from(x as &str));
+            }
+            n
+        }
+        println!(
+            "Intern<String>::from {}",
+            bench_gen_env(|| s1.clone(), mksetfrom)
+        );
         fn rmset(s: &mut (HashSet<Intern<String>>, HashSet<Intern<String>>)) {
             for x in s.1.iter() {
                 s.0.remove(x);
@@ -82,7 +93,7 @@ fn main() {
     println!();
 
     println!(
-        "Intern<i64>::new {}",
+        "LocalIntern<i64>::new {}",
         bench_gen_env(|| rand::random::<i64>(), |x| LocalIntern::new(*x))
     );
     println!(
@@ -101,6 +112,17 @@ fn main() {
         println!(
             "LocalIntern<String>::new {}",
             bench_gen_env(|| s1.clone(), mkset)
+        );
+        fn mksetfrom(s: &mut HashSet<String>) -> HashSet<LocalIntern<String>> {
+            let mut n = HashSet::new();
+            for x in s.iter() {
+                n.insert(LocalIntern::from(x as &str));
+            }
+            n
+        }
+        println!(
+            "LocalIntern<String>::from {}",
+            bench_gen_env(|| s1.clone(), mksetfrom)
         );
         fn rmset(s: &mut (HashSet<LocalIntern<String>>, HashSet<LocalIntern<String>>)) {
             for x in s.1.iter() {
@@ -138,6 +160,17 @@ fn main() {
         println!(
             "ArcIntern<String>::new {}",
             bench_gen_env(|| s1.clone(), mkset)
+        );
+        fn mksetfrom(s: &mut HashSet<String>) -> HashSet<ArcIntern<String>> {
+            let mut n = HashSet::new();
+            for x in s.iter() {
+                n.insert(ArcIntern::from(x as &str));
+            }
+            n
+        }
+        println!(
+            "ArcIntern<String>::from {}",
+            bench_gen_env(|| s1.clone(), mksetfrom)
         );
         fn rmset(s: &mut (HashSet<ArcIntern<String>>, HashSet<ArcIntern<String>>)) {
             for x in s.1.iter() {

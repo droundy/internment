@@ -26,6 +26,7 @@ maintenance = { status = "actively-developed" }
 lazy_static = "1.4.0"
 state = { version = "0.4.1", features = ["tls"] }
 tinyset = "0.4.2"
+hashbrown = { version = "0.8" }
 serde = "1.0"
 
 [dev-dependencies]

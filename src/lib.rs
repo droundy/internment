@@ -49,7 +49,8 @@ use quickcheck::quickcheck;
 
 use lazy_static::lazy_static;
 
-use std::collections::{HashSet};
+mod boxedset;
+use boxedset::{HashSet};
 use std::sync::Mutex;
 use std::sync::atomic::{AtomicUsize, Ordering};
 use std::cell::RefCell;
@@ -125,6 +126,21 @@ impl<T: Eq + Hash + Send + 'static> Intern<T> {
             return Intern { pointer: b.borrow() };
         }
         let b = Box::new(val);
+        let p: *const T = b.borrow();
+        m.insert(b);
+        return Intern { pointer: p };
+    }
+    /// Intern a value from a reference.
+    ///
+    /// If this value has not previously been
+    /// interned, then `new` will allocate a spot for the value on the
+    /// heap and generate that value using `T::from(val)`.
+    pub fn from<'a, Q: ?Sized+Eq+Hash+'a>(val: &'a Q) -> Intern<T> where T: Borrow<Q> + From<&'a Q> {
+        let mut m = Self::get_mutex().lock().unwrap();
+        if let Some(b) = m.get(val) {
+            return Intern { pointer: b.borrow() };
+        }
+        let b = Box::new(T::from(val));
         let p: *const T = b.borrow();
         m.insert(b);
         return Intern { pointer: p };
@@ -312,6 +328,22 @@ impl<T: Eq + Hash + Send + 'static> ArcIntern<T> {
         m.insert(Arc { pointer: ptr });
         p
     }
+    /// Intern a value from a reference with atomic reference counting.
+    ///
+    /// If this value has not previously been
+    /// interned, then `new` will allocate a spot for the value on the
+    /// heap and generate that value using `T::from(val)`.
+    pub fn from<'a, Q: ?Sized+Eq+Hash+'a>(val: &'a Q) -> ArcIntern<T> where T: Borrow<Q> + From<&'a Q> {
+        let mymutex = Self::get_mutex();
+        let mut m = mymutex.lock().unwrap();
+        if let Some(b) = m.get(&val) {
+            return b.clone_to_interned();
+        }
+        let ptr = Box::leak(Box::new(RefCount { count: AtomicUsize::new(2), data: val.into() }));
+        let p = ArcIntern { pointer: ptr };
+        m.insert(Arc { pointer: ptr });
+        p
+    }
     /// See how many objects have been interned.  This may be helpful
     /// in analyzing memory use.
     pub fn num_objects_interned(&self) -> usize {
@@ -323,6 +355,15 @@ impl<T: Eq + Hash + Send + 'static> ArcIntern<T> {
     /// Return the number of counts for this pointer.
     pub fn refcount(&self) -> usize {
         unsafe { (*self.pointer).count.load(Ordering::Relaxed) }
+    }
+    fn clone_to_arc(&self) -> Arc<T> {
+        // First increment the count.  Using a relaxed ordering is
+        // alright here, as knowledge of the original reference
+        // prevents other threads from erroneously deleting the
+        // object.  (See `std::sync::Arc` documentation for more
+        // explanation.)
+        unsafe { (*self.pointer).count.fetch_add(1, Ordering::Relaxed) };
+        Arc { pointer: self.pointer }
     }
 }
 
@@ -382,7 +423,7 @@ impl<T: Eq + Hash + Send> Drop for ArcIntern<T> {
                 // because that would require either that there be another copy of the
                 // ArcIntern (which we know doesn't exist because of the count) or 
                 // someone holding the Mutex.
-                if let Some(interned) = m.take(self.as_ref()) {
+                if let Some(interned) = m.take(&self.clone_to_arc()) {
                     assert_eq!(self.pointer, interned.pointer);
                     _removed = interned;
                     // if interned.pointer != self.pointer {
@@ -692,6 +733,22 @@ impl<T: Eq + Hash + 'static> LocalIntern<T> {
                 return LocalIntern { pointer: (*b).borrow() };
             }
             let b = Box::new(val);
+            let p: *const T = b.borrow();
+            m.insert(b);
+            LocalIntern { pointer: p }
+        })
+    }
+    /// Intern a value from a reference in a thread-local way (fastest).
+    ///
+    /// If this value has not previously been
+    /// interned, then `new` will allocate a spot for the value on the
+    /// heap and generate that value using `T::from(val)`.
+    pub fn from<'a, Q: ?Sized+Eq+Hash+'a>(val: &'a Q) -> LocalIntern<T> where T: Borrow<Q> + From<&'a Q> {
+        with_local(|m: &mut HashSet<Box<T>>| -> LocalIntern<T> {
+            if let Some(ref b) = m.get(val) {
+                return LocalIntern { pointer: (*b).borrow() };
+            }
+            let b = Box::new(T::from(val));
             let p: *const T = b.borrow();
             m.insert(b);
             LocalIntern { pointer: p }
