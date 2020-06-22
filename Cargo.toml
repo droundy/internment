@@ -1,6 +1,6 @@
 [package]
 name = "internment"
-version = "0.3.12"
+version = "0.3.13"
 authors = ["David Roundy <roundyd@physics.oregonstate.edu>"]
 edition = "2018"
 
