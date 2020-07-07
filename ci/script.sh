@@ -12,6 +12,8 @@ main() {
 
     cross test --target $TARGET
     cross test --target $TARGET --release
+
+    RUSTFLAGS="-Z sanitizer=address" cargo +nightly run --example arc-sanitize --target  x86_64-unknown-linux-gnu
 }
 
 # we don't run the "test phase" when doing deploys
