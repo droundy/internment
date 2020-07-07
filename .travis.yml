@@ -12,6 +12,7 @@ cache: cargo
 script:
   - cargo build --verbose --all
   - cargo test --verbose --all
+  - echo rust version is "$TRAVIS_RUST_VERSION"
   - if [ "$TRAVIS_RUST_VERSION" = "nightly" ]; then RUSTFLAGS="-Z sanitizer=address" cargo run --example arc-sanitize --target x86_64-unknown-linux-gnu; fi
 
 notifications:
