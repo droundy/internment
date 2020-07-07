@@ -10,10 +10,10 @@ jobs:
 cache: cargo
 
 script:
+  - echo rust version is "$TRAVIS_RUST_VERSION"
+  - if [ "$TRAVIS_RUST_VERSION" = "nightly" ]; then echo running with sanitizer; RUSTFLAGS="-Z sanitizer=address" cargo run --example arc-sanitize --target x86_64-unknown-linux-gnu; else echo not running on nightly so skipping sanitizer; fi
   - cargo build --verbose --all
   - cargo test --verbose --all
-  - echo rust version is "$TRAVIS_RUST_VERSION"
-  - if [ "$TRAVIS_RUST_VERSION" = "nightly" ]; then RUSTFLAGS="-Z sanitizer=address" cargo run --example arc-sanitize --target x86_64-unknown-linux-gnu; fi
 
 notifications:
   email:
