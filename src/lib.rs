@@ -714,6 +714,31 @@ fn test_intern_num_objects() {
     }
 }
 
+#[cfg(test)]
+#[derive(Eq, PartialEq, Hash)]
+pub struct TestStruct(String,u64);
+
+// Quickly create and destroy a small number of interned objects from
+// multiple threads.
+#[test]
+fn multithreading1() {
+    use std::thread;
+    let mut thandles = vec![];
+    for _i in 0..10 {
+        thandles.push(thread::spawn(|| {
+            for _i in 0..100_000 {
+                let _interned1 = ArcIntern::new(TestStruct("foo".to_string(), 5));
+                let _interned2 = ArcIntern::new(TestStruct("bar".to_string(), 10));
+            }
+        }));
+    }
+    for h in thandles.into_iter() {
+        h.join().unwrap()
+    }
+
+    assert_eq!(ArcIntern::<TestStruct>::num_objects_interned(), 0);
+}
+
 
 /// A pointer to a thread-local interned object.
 ///
