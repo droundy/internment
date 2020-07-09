@@ -169,7 +169,7 @@ impl<T: Eq + Hash + Send + 'static> Intern<T> {
     }
     /// See how many objects have been interned.  This may be helpful
     /// in analyzing memory use.
-    pub fn num_objects_interned(&self) -> usize {
+    pub fn num_objects_interned() -> usize {
         if let Some(m) = CONTAINER.try_get::<Mutex<HashSet<Box<T>>>>() {
             return m.lock().unwrap().len();
         }
@@ -407,7 +407,7 @@ impl<T: Eq + Hash + Send + 'static> ArcIntern<T> {
     }
     /// See how many objects have been interned.  This may be helpful
     /// in analyzing memory use.
-    pub fn num_objects_interned(&self) -> usize {
+    pub fn num_objects_interned() -> usize {
         if let Some(m) = CONTAINER.try_get::<Container<T>>() {
             return m.lock().unwrap().len();
         }
@@ -638,11 +638,25 @@ impl<T: Eq + Hash + Send + Debug> Debug for ArcIntern<T> {
 #[test]
 fn test_arcintern_freeing() {
     assert_eq!(ArcIntern::new(5), ArcIntern::new(5));
-    assert_eq!(ArcIntern::new(6).num_objects_interned(), 1);
-    assert_eq!(ArcIntern::new(6).num_objects_interned(), 1);
-    assert_eq!(ArcIntern::new(7).num_objects_interned(), 1);
+    {
+        let _interned = ArcIntern::new(6);
+        assert_eq!(ArcIntern::<i32>::num_objects_interned(), 1);
+    }
+    {
+        let _interned =ArcIntern::new(6);
+        assert_eq!(ArcIntern::<i32>::num_objects_interned(), 1);
+    }
+    {
+        let _interned = ArcIntern::new(7);
+        assert_eq!(ArcIntern::<i32>::num_objects_interned(), 1);
+    }
+
     let six = ArcIntern::new(6);
-    assert_eq!(ArcIntern::new(7).num_objects_interned(), 2);
+
+    {
+        let _interned = ArcIntern::new(7);
+        assert_eq!(ArcIntern::<i32>::num_objects_interned(), 2);
+    }
     assert_eq!(ArcIntern::new(6), six);
 }
 
@@ -660,9 +674,43 @@ fn test_arcintern_nested_drop() {
 #[test]
 fn test_intern_num_objects() {
     assert_eq!(Intern::new(5), Intern::new(5));
-    assert_eq!(Intern::new(6).num_objects_interned(), 2);
-    assert_eq!(Intern::new(6).num_objects_interned(), 2);
-    assert_eq!(Intern::new(7).num_objects_interned(), 3);
+    {
+        let _interned =Intern::new(6);
+        assert_eq!(Intern::<i32>::num_objects_interned(), 2);
+    }
+    {
+        let _interned =Intern::new(6);
+        assert_eq!(Intern::<i32>::num_objects_interned(), 2);
+    }
+    {
+        let _interned =Intern::new(7);
+        assert_eq!(Intern::<i32>::num_objects_interned(), 3);
+    }
+}
+
+#[cfg(test)]
+#[derive(Eq, PartialEq, Hash)]
+pub struct TestStruct(String,u64);
+
+// Quickly create and destroy a small number of interned objects from
+// multiple threads.
+#[test]
+fn multithreading1() {
+    use std::thread;
+    let mut thandles = vec![];
+    for _i in 0..10 {
+        thandles.push(thread::spawn(|| {
+            for _i in 0..100_000 {
+                let _interned1 = ArcIntern::new(TestStruct("foo".to_string(), 5));
+                let _interned2 = ArcIntern::new(TestStruct("bar".to_string(), 10));
+            }
+        }));
+    }
+    for h in thandles.into_iter() {
+        h.join().unwrap()
+    }
+
+    assert_eq!(ArcIntern::<TestStruct>::num_objects_interned(), 0);
 }
 
 /// A pointer to a thread-local interned object.
@@ -781,17 +829,28 @@ impl<T: Eq + Hash + 'static> LocalIntern<T> {
     }
     /// See how many objects have been interned.  This may be helpful
     /// in analyzing memory use.
-    pub fn num_objects_interned(&self) -> usize {
-        with_local(|m: &mut HashSet<Box<T>>| -> usize { m.len() })
+    pub fn num_objects_interned() -> usize {
+        with_local(|m: &mut HashSet<Box<T>>| -> usize {
+            m.len()
+        })
     }
 }
 
 #[test]
 fn test_localintern_num_objects() {
     assert_eq!(LocalIntern::new(5), LocalIntern::new(5));
-    assert_eq!(LocalIntern::new(6).num_objects_interned(), 2);
-    assert_eq!(LocalIntern::new(6).num_objects_interned(), 2);
-    assert_eq!(LocalIntern::new(7).num_objects_interned(), 3);
+    {
+        let _interned =LocalIntern::new(6);
+        assert_eq!(LocalIntern::<i32>::num_objects_interned(), 2);
+    }
+    {
+        let _interned =LocalIntern::new(6);
+        assert_eq!(LocalIntern::<i32>::num_objects_interned(), 2);
+    }
+    {
+        let _interned =LocalIntern::new(7);
+        assert_eq!(LocalIntern::<i32>::num_objects_interned(), 3);
+    }
 }
 
 #[cfg(test)]
