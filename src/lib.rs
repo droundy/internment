@@ -440,7 +440,6 @@ impl<T: Eq + Hash + Send> Drop for ArcIntern<T> {
         // threads unless we are going to delete the object. This same
         // logic applies to the below `fetch_sub` to the `weak` count.
         let count_was = unsafe { (*self.pointer).count.fetch_sub(1, Ordering::Release) };
-        println!("dropping the count is {}", count_was);
         if count_was == 1 {
             // (Quoting from std::sync::Arc again): This fence is
             // needed to prevent reordering of use of the data and
