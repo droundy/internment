@@ -304,6 +304,11 @@ impl<T> Borrow<T> for BoxRefCount<T> {
         &self.0.data
     }
 }
+impl<T> Borrow<RefCount<T>> for BoxRefCount<T> {
+    fn borrow(&self) -> &RefCount<T> {
+        &self.0
+    }
+}
 impl<T> Deref for BoxRefCount<T> {
     type Target = T;
     fn deref(&self) -> &Self::Target {
@@ -330,38 +335,35 @@ impl<T: Eq + Hash + Send + 'static> ArcIntern<T> {
     /// Note that `ArcIntern::new` is a bit slow, since it needs to check
     /// a `HashMap` protected by a `Mutex`.
     pub fn new(val: T) -> ArcIntern<T> {
-        let _removed;
-        let mut need_to_remove = false;
-        let mymutex = Self::get_mutex();
-        let mut m = mymutex.lock().unwrap();
-        if let Some(b) = m.get(&val) {
-            // First increment the count.  We can use relaxed ordering
-            // here because we are holding the mutex, which has its
-            // own barriers.
-            let oldval = b.0.count.fetch_add(1, Ordering::Relaxed);
-            if oldval != 0 {
-                // we can only use this value if the value is not about to be freed
-                return ArcIntern {
-                    pointer: b.0.borrow(),
-                };
+        loop {
+            let mymutex = Self::get_mutex();
+            let mut m = mymutex.lock().unwrap();
+            if let Some(b) = m.get(&val) {
+                // First increment the count.  We can use relaxed ordering
+                // here because we are holding the mutex, which has its
+                // own barriers.
+                let oldval = b.0.count.fetch_add(1, Ordering::Relaxed);
+                if oldval != 0 {
+                    // we can only use this value if the value is not about to be freed
+                    return ArcIntern {
+                        pointer: b.0.borrow(),
+                    };
+                } else {
+                    b.0.count.fetch_sub(1, Ordering::Relaxed);
+                }
             } else {
-                need_to_remove = true;
+                let b = Box::new(RefCount {
+                    count: AtomicUsize::new(1),
+                    data: val,
+                });
+                let p = ArcIntern {
+                    pointer: b.borrow(),
+                };
+                m.insert(BoxRefCount(b));
+                return p;
             }
+            std::thread::yield_now();
         }
-        let b = Box::new(RefCount {
-            count: AtomicUsize::new(1),
-            data: val,
-        });
-        let p = ArcIntern {
-            pointer: b.borrow(),
-        };
-        let brc = BoxRefCount(b);
-        if need_to_remove {
-            // let's just get rid of this well we're here
-            _removed = m.take(&brc);
-        }
-        m.insert(brc);
-        p
     }
     /// Intern a value from a reference with atomic reference counting.
     ///
@@ -372,38 +374,35 @@ impl<T: Eq + Hash + Send + 'static> ArcIntern<T> {
     where
         T: Borrow<Q> + From<&'a Q>,
     {
-        let _removed;
-        let mut need_to_remove = false;
-        let mymutex = Self::get_mutex();
-        let mut m = mymutex.lock().unwrap();
-        if let Some(b) = m.get(val) {
-            // First increment the count.  We can use relaxed ordering
-            // here because we are holding the mutex, which has its
-            // own barriers.
-            let oldval = b.0.count.fetch_add(1, Ordering::Relaxed);
-            if oldval != 0 {
-                // we can only use this value if the value is not about to be freed
-                return ArcIntern {
-                    pointer: b.0.borrow(),
-                };
+        loop {
+            let mymutex = Self::get_mutex();
+            let mut m = mymutex.lock().unwrap();
+            if let Some(b) = m.get(val) {
+                // First increment the count.  We can use relaxed ordering
+                // here because we are holding the mutex, which has its
+                // own barriers.
+                let oldval = b.0.count.fetch_add(1, Ordering::Relaxed);
+                if oldval != 0 {
+                    // we can only use this value if the value is not about to be freed
+                    return ArcIntern {
+                        pointer: b.0.borrow(),
+                    };
+                } else {
+                    b.0.count.fetch_sub(1, Ordering::Relaxed);
+                }
             } else {
-                need_to_remove = true;
+                let b = Box::new(RefCount {
+                    count: AtomicUsize::new(1),
+                    data: val.into(),
+                });
+                let p = ArcIntern {
+                    pointer: b.borrow(),
+                };
+                m.insert(BoxRefCount(b));
+                return p;
             }
+            std::thread::yield_now();
         }
-        let b = Box::new(RefCount {
-            count: AtomicUsize::new(1),
-            data: val.into(),
-        });
-        let p = ArcIntern {
-            pointer: b.borrow(),
-        };
-        let brc = BoxRefCount(b);
-        if need_to_remove {
-            // let's just get rid of this well we're here
-            _removed = m.take(&brc);
-        }
-        m.insert(brc);
-        p
     }
     /// See how many objects have been interned.  This may be helpful
     /// in analyzing memory use.
@@ -454,11 +453,9 @@ impl<T: Eq + Hash + Send> Drop for ArcIntern<T> {
             // removed is declared before m, so the mutex guard will be
             // dropped *before* the removed content is dropped, since it
             // might need to lock the mutex.
-            let _removed: Vec<_>;
+            let _removed;
             let mut m = Self::get_mutex().lock().unwrap();
-            _removed = m
-                .drain_filter(|p| p as *const T != unsafe { &(*self.pointer).data } as *const T)
-                .collect();
+            _removed = m.take(unsafe { &*self.pointer });
         }
     }
 }
@@ -643,7 +640,7 @@ fn test_arcintern_freeing() {
         assert_eq!(ArcIntern::<i32>::num_objects_interned(), 1);
     }
     {
-        let _interned =ArcIntern::new(6);
+        let _interned = ArcIntern::new(6);
         assert_eq!(ArcIntern::<i32>::num_objects_interned(), 1);
     }
     {
@@ -675,22 +672,22 @@ fn test_arcintern_nested_drop() {
 fn test_intern_num_objects() {
     assert_eq!(Intern::new(5), Intern::new(5));
     {
-        let _interned =Intern::new(6);
+        let _interned = Intern::new(6);
         assert_eq!(Intern::<i32>::num_objects_interned(), 2);
     }
     {
-        let _interned =Intern::new(6);
+        let _interned = Intern::new(6);
         assert_eq!(Intern::<i32>::num_objects_interned(), 2);
     }
     {
-        let _interned =Intern::new(7);
+        let _interned = Intern::new(7);
         assert_eq!(Intern::<i32>::num_objects_interned(), 3);
     }
 }
 
 #[cfg(test)]
 #[derive(Eq, PartialEq, Hash)]
-pub struct TestStruct(String,u64);
+pub struct TestStruct(String, u64);
 
 // Quickly create and destroy a small number of interned objects from
 // multiple threads.
@@ -713,6 +710,24 @@ fn multithreading1() {
     assert_eq!(ArcIntern::<TestStruct>::num_objects_interned(), 0);
 }
 
+// Quickly create a small number of interned objects from
+// multiple threads.
+#[test]
+fn multithreading_intern() {
+    use std::thread;
+    let mut thandles = vec![];
+    for _i in 0..10 {
+        thandles.push(thread::spawn(|| {
+            for _i in 0..100_000 {
+                let _interned1 = Intern::new(TestStruct("foo".to_string(), 5));
+                let _interned2 = Intern::new(TestStruct("bar".to_string(), 10));
+            }
+        }));
+    }
+    for h in thandles.into_iter() {
+        h.join().unwrap()
+    }
+}
 /// A pointer to a thread-local interned object.
 ///
 /// The interned object will be held in memory as long as the thread
@@ -830,9 +845,7 @@ impl<T: Eq + Hash + 'static> LocalIntern<T> {
     /// See how many objects have been interned.  This may be helpful
     /// in analyzing memory use.
     pub fn num_objects_interned() -> usize {
-        with_local(|m: &mut HashSet<Box<T>>| -> usize {
-            m.len()
-        })
+        with_local(|m: &mut HashSet<Box<T>>| -> usize { m.len() })
     }
 }
 
@@ -840,15 +853,15 @@ impl<T: Eq + Hash + 'static> LocalIntern<T> {
 fn test_localintern_num_objects() {
     assert_eq!(LocalIntern::new(5), LocalIntern::new(5));
     {
-        let _interned =LocalIntern::new(6);
+        let _interned = LocalIntern::new(6);
         assert_eq!(LocalIntern::<i32>::num_objects_interned(), 2);
     }
     {
-        let _interned =LocalIntern::new(6);
+        let _interned = LocalIntern::new(6);
         assert_eq!(LocalIntern::<i32>::num_objects_interned(), 2);
     }
     {
-        let _interned =LocalIntern::new(7);
+        let _interned = LocalIntern::new(7);
         assert_eq!(LocalIntern::<i32>::num_objects_interned(), 3);
     }
 }

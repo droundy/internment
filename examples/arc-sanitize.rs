@@ -19,6 +19,37 @@ fn main() {
     for x in threads.into_iter() {
         x.join().unwrap();
     }
+    println!("moving on");
+    use std::thread;
+    let mut thandles = vec![];
+    for _i in 0..10 {
+        thandles.push(thread::spawn(|| {
+            for _i in 0..100_000 {
+                let _interned1 = ArcIntern::new("foo".to_string());
+                let _interned2 = ArcIntern::new("bar".to_string());
+            }
+        }));
+    }
+    for h in thandles.into_iter() {
+        h.join().unwrap();
+    }
+    println!("and finally");
+    #[derive(Eq, PartialEq, Hash)]
+    pub struct TestStruct(String, u64);
+
+    let mut thandles = vec![];
+    for _i in 0..10 {
+        thandles.push(thread::spawn(|| {
+            for _i in 0..100_000 {
+                let _interned1 = ArcIntern::new(TestStruct("foo".to_string(), 5));
+                let _interned2 = ArcIntern::new(TestStruct("bar".to_string(), 10));
+            }
+        }));
+    }
+    for h in thandles.into_iter() {
+        h.join().unwrap()
+    }
+
     println!("vvvvvvvvvvvvvvvvvvvvv");
     println!("all good\n\n\n\n");
 }

@@ -31,8 +31,11 @@ impl<P: Deref + Eq + Hash> HashSet<P> {
             .as_ref()
             .map(|kv| kv.0)
     }
-    pub fn take(&mut self, key: &P) -> Option<P> {
-        self.0.remove_entry(key).map(|(a, ())| a)
+    pub fn take<Q: ?Sized + Hash + Eq>(&mut self, k: &Q) -> Option<P>
+    where
+        P: Borrow<Q>,
+    {
+        self.0.remove_entry(k).map(|(a, ())| a)
         // let hash = {
         //     let mut hasher = self.0.hasher().build_hasher();
         //     key.hash(&mut hasher);
@@ -45,8 +48,5 @@ impl<P: Deref + Eq + Hash> HashSet<P> {
     }
     pub fn len(&self) -> usize {
         self.0.len()
-    }
-    pub fn drain_filter<'a>(&'a mut self,mut f: impl FnMut(&P::Target) -> bool+'a) -> impl Iterator<Item=P>+'a {
-        self.0.drain_filter(move |p,_| f(&*p)).map(|(s,_)|s)
     }
 }
