@@ -349,6 +349,9 @@ impl<T: Eq + Hash + Send + 'static> ArcIntern<T> {
                         pointer: b.0.borrow(),
                     };
                 } else {
+                    // we have encountered a race condition here.
+                    // we will just wait for the object to finish
+                    // being freed.
                     b.0.count.fetch_sub(1, Ordering::Relaxed);
                 }
             } else {
@@ -362,6 +365,8 @@ impl<T: Eq + Hash + Send + 'static> ArcIntern<T> {
                 m.insert(BoxRefCount(b));
                 return p;
             }
+            // yield so that the object can finish being freed,
+            // and then we will be able to intern a new copy.
             std::thread::yield_now();
         }
     }
@@ -388,6 +393,9 @@ impl<T: Eq + Hash + Send + 'static> ArcIntern<T> {
                         pointer: b.0.borrow(),
                     };
                 } else {
+                    // we have encountered a race condition here.
+                    // we will just wait for the object to finish
+                    // being freed.
                     b.0.count.fetch_sub(1, Ordering::Relaxed);
                 }
             } else {
@@ -401,6 +409,8 @@ impl<T: Eq + Hash + Send + 'static> ArcIntern<T> {
                 m.insert(BoxRefCount(b));
                 return p;
             }
+            // yield so that the object can finish being freed,
+            // and then we will be able to intern a new copy.
             std::thread::yield_now();
         }
     }
