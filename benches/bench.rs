@@ -8,8 +8,12 @@ fn main() {
     LocalIntern::new(0i64);
     ArcIntern::new(0i64);
     arc_interner::ArcIntern::new(0i64);
-    let s1: HashSet<_> = (1..3000).map(|i| format!("hello this is a pretty long string {:500}", i)).collect();
-    let s2: HashSet<_> = (1..1000).map(|i| format!("hello this is a pretty long string also {:500}", i)).collect();
+    let s1: HashSet<_> = (1..3000)
+        .map(|i| format!("hello this is a pretty long string {:500}", i))
+        .collect();
+    let s2: HashSet<_> = (1..1000)
+        .map(|i| format!("hello this is a pretty long string also {:500}", i))
+        .collect();
     for x in 0u8..=255 {
         Intern::new(x);
         LocalIntern::new(x);
@@ -26,10 +30,7 @@ fn main() {
             n
         }
         mkset(&mut s1.clone());
-        println!(
-            "String::new {}",
-            bench_gen_env(|| s1.clone(), mkset)
-        );
+        println!("String::new {}", bench_gen_env(|| s1.clone(), mkset));
         fn rmset(s: &mut (HashSet<String>, HashSet<String>)) {
             for x in s.1.iter() {
                 s.0.remove(x);
@@ -215,13 +216,26 @@ fn main() {
             "arc_interner::ArcIntern<String>::new {}",
             bench_gen_env(|| s1.clone(), mkset)
         );
-        fn rmset(s: &mut (HashSet<arc_interner::ArcIntern<String>>, HashSet<arc_interner::ArcIntern<String>>)) {
+        fn rmset(
+            s: &mut (
+                HashSet<arc_interner::ArcIntern<String>>,
+                HashSet<arc_interner::ArcIntern<String>>,
+            ),
+        ) {
             for x in s.1.iter() {
                 s.0.remove(x);
             }
         }
-        let s1: HashSet<_> = s1.iter().cloned().map(|s| arc_interner::ArcIntern::new(s)).collect();
-        let s2: HashSet<_> = s2.iter().cloned().map(|s| arc_interner::ArcIntern::new(s)).collect();
+        let s1: HashSet<_> = s1
+            .iter()
+            .cloned()
+            .map(|s| arc_interner::ArcIntern::new(s))
+            .collect();
+        let s2: HashSet<_> = s2
+            .iter()
+            .cloned()
+            .map(|s| arc_interner::ArcIntern::new(s))
+            .collect();
         println!(
             "arc_interner::ArcIntern<String>::compare/hash {}",
             bench_gen_env(|| (s1.clone(), s2.clone()), rmset)
