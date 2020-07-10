@@ -458,7 +458,7 @@ impl<T: Eq + Hash + Send> Drop for ArcIntern<T> {
             // happens before decreasing the reference count, which
             // happens before this fence, which happens before the
             // deletion of the data.
-            unsafe { std::sync::atomic::fence(Ordering::Acquire) };
+            std::sync::atomic::fence(Ordering::Acquire);
 
             // removed is declared before m, so the mutex guard will be
             // dropped *before* the removed content is dropped, since it
