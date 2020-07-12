@@ -96,8 +96,37 @@ lazy_static! {
 /// let y = Intern::<String>::from("world");
 /// assert_ne!(x, y);
 /// assert_eq!(x, Intern::from("hello"));
+/// assert_eq!(y, Intern::from("world"));
 /// assert_eq!(&*x, "hello"); // dereference a Intern like a pointer
 /// ```
+
+#[test]
+fn like_doctest_intern() {
+    let x = Intern::new("hello".to_string());
+    let y = Intern::<String>::from("world");
+    assert_ne!(x, y);
+    assert_eq!(x, Intern::from("hello"));
+    assert_eq!(y, Intern::from("world"));
+    assert_eq!(&*x, "hello"); // dereference a Intern like a pointer\
+}
+#[test]
+fn like_doctest_arcintern() {
+    let x = ArcIntern::new("hello".to_string());
+    let y = ArcIntern::<String>::from("world");
+    assert_ne!(x, y);
+    assert_eq!(x, ArcIntern::from("hello"));
+    assert_eq!(y, ArcIntern::from("world"));
+    assert_eq!(&*x, "hello"); // dereference a Intern like a pointer\
+}
+#[test]
+fn like_doctest_localintern() {
+    let x = LocalIntern::new("hello".to_string());
+    let y = LocalIntern::<String>::from("world");
+    assert_ne!(x, y);
+    assert_eq!(x, LocalIntern::from("hello"));
+    assert_eq!(y, LocalIntern::from("world"));
+    assert_eq!(&*x, "hello"); // dereference a Intern like a pointer\
+}
 
 pub struct Intern<T> {
     pointer: *const T,
@@ -644,6 +673,7 @@ impl<T: Eq + Hash + Send + Debug> Debug for ArcIntern<T> {
 
 #[test]
 fn test_arcintern_freeing() {
+    assert_eq!(ArcIntern::<i32>::num_objects_interned(), 0);
     assert_eq!(ArcIntern::new(5), ArcIntern::new(5));
     {
         let _interned = ArcIntern::new(6);
