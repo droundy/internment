@@ -620,6 +620,11 @@ macro_rules! create_impls {
                             $Intern::<Option<String>>::new(None));
             }
             #[test]
+            fn can_clone() {
+                assert_eq!( $Intern::<Option<String>>::default().clone(),
+                            $Intern::<Option<String>>::new(None));
+            }
+            #[test]
             fn has_borrow() {
                 let x = $Intern::<Option<String>>::default();
                 let b: &Option<String> = x.borrow();
