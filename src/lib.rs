@@ -328,11 +328,6 @@ impl<T: Hash> Hash for RefCount<T> {
 }
 #[derive(Eq, PartialEq, Hash)]
 struct BoxRefCount<T>(Box<RefCount<T>>);
-impl<T> Borrow<T> for BoxRefCount<T> {
-    fn borrow(&self) -> &T {
-        &self.0.data
-    }
-}
 impl<T> Borrow<RefCount<T>> for BoxRefCount<T> {
     fn borrow(&self) -> &RefCount<T> {
         &self.0
@@ -710,6 +705,7 @@ fn test_arcintern_nested_drop() {
 
 #[test]
 fn test_intern_num_objects() {
+    assert_eq!(Intern::<i32>::num_objects_interned(), 0);
     assert_eq!(Intern::new(5), Intern::new(5));
     {
         let _interned = Intern::new(6);
