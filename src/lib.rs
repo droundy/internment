@@ -407,6 +407,11 @@ impl<T: Eq + Hash + Send + 'static> ArcIntern<T> {
             let mymutex = Self::get_mutex();
             let mut m = mymutex.lock().unwrap();
             if let Some(b) = m.get(val) {
+                // The following causes the code only when testing, to yield
+                // control before taking the mutex, which should make it
+                // easier to trigger any race condition (and hopefully won't
+                // mask any other race conditions).
+                yield_on_tests();
                 // First increment the count.  We can use relaxed ordering
                 // here because we are holding the mutex, which has its
                 // own barriers.
@@ -466,6 +471,16 @@ impl<T: Eq + Hash + Send + 'static> Clone for ArcIntern<T> {
     }
 }
 
+
+#[cfg(not(test))]
+fn yield_on_tests() {
+}
+#[cfg(test)]
+fn yield_on_tests() {
+    std::thread::yield_now();
+}
+
+
 impl<T: Eq + Hash + Send> Drop for ArcIntern<T> {
     fn drop(&mut self) {
         // (Quoting from std::sync::Arc again): Because `fetch_sub` is
@@ -474,6 +489,11 @@ impl<T: Eq + Hash + Send> Drop for ArcIntern<T> {
         // logic applies to the below `fetch_sub` to the `weak` count.
         let count_was = unsafe { (*self.pointer).count.fetch_sub(1, Ordering::Release) };
         if count_was == 1 {
+            // The following causes the code only when testing, to yield
+            // control before taking the mutex, which should make it
+            // easier to trigger any race condition (and hopefully won't
+            // mask any other race conditions).
+            yield_on_tests();
             // (Quoting from std::sync::Arc again): This fence is
             // needed to prevent reordering of use of the data and
             // deletion of the data.  Because it is marked `Release`,
@@ -750,7 +770,6 @@ fn multithreading1() {
 
     assert_eq!(ArcIntern::<TestStruct>::num_objects_interned(), 0);
 }
-
 // Quickly create a small number of interned objects from
 // multiple threads.
 #[test]
