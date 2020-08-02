@@ -748,28 +748,38 @@ fn test_intern_num_objects() {
 
 #[cfg(test)]
 #[derive(Eq, PartialEq, Hash)]
-pub struct TestStruct(String, u64);
+pub struct TestStructCount(String, u64, std::sync::Arc<bool>);
 
 // Quickly create and destroy a small number of interned objects from
 // multiple threads.
 #[test]
 fn multithreading1() {
+    use std::sync::Arc;
     use std::thread;
     let mut thandles = vec![];
+    let drop_check = Arc::new(true);
     for _i in 0..10 {
-        thandles.push(thread::spawn(|| {
-            for _i in 0..100_000 {
-                let _interned1 = ArcIntern::new(TestStruct("foo".to_string(), 5));
-                let _interned2 = ArcIntern::new(TestStruct("bar".to_string(), 10));
+        thandles.push(thread::spawn({
+            let drop_check = drop_check.clone();
+            move || {
+                for _i in 0..100_000 {
+                    let _interned1 = ArcIntern::new(TestStructCount("foo".to_string(), 5, drop_check.clone()));
+                    let _interned2 = ArcIntern::new(TestStructCount("bar".to_string(), 10, drop_check.clone()));
+                }
             }
         }));
     }
     for h in thandles.into_iter() {
         h.join().unwrap()
     }
-
-    assert_eq!(ArcIntern::<TestStruct>::num_objects_interned(), 0);
+    assert_eq!(Arc::strong_count(&drop_check), 1);
+    assert_eq!(ArcIntern::<TestStructCount>::num_objects_interned(), 0);
 }
+
+#[cfg(test)]
+#[derive(Eq, PartialEq, Hash)]
+pub struct TestStruct(String, u64);
+
 // Quickly create a small number of interned objects from
 // multiple threads.
 #[test]
