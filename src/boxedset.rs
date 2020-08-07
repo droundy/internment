@@ -31,7 +31,7 @@ impl<P: Deref + Eq + Hash> HashSet<P> {
             .as_ref()
             .map(|kv| kv.0)
     }
-    pub fn take<Q: ?Sized + Hash + Eq>(&mut self, k: &Q) -> Option<P>
+    pub fn _take<Q: ?Sized + Hash + Eq>(&mut self, k: &Q) -> Option<P>
     where
         P: Borrow<Q>,
     {
