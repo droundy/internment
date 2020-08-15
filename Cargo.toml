@@ -16,6 +16,7 @@ keywords = ["hash", "interning", "hashconsing", "caching", "interner"]
 
 appveyor = { repository = "droundy/internment" }
 travis-ci = { repository = "droundy/internment" }
+coveralls = { repository = "droundy/internment" }
 
 is-it-maintained-issue-resolution = { repository = "droundy/internment" }
 is-it-maintained-open-issues = { repository = "droundy/internment" }
