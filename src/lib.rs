@@ -146,10 +146,13 @@ impl<T> Clone for Intern<T> {
 /// because we never free the data pointed to by an `Intern`.
 impl<T> Copy for Intern<T> {}
 
-impl<T: Eq + Hash + Send + Sync + 'static> Intern<T> {
+impl<T> Intern<T> {
     fn get_pointer(&self) -> *const T {
         self.pointer as *const T
     }
+}
+
+impl<T: Eq + Hash + Send + Sync + 'static> Intern<T> {
     fn get_mutex() -> &'static Mutex<HashSet<&'static T>> {
         match CONTAINER.try_get::<Mutex<HashSet<&'static T>>>() {
             Some(m) => m,
@@ -863,10 +866,13 @@ where
 /// `LocalIntern` until the thread itself is destroyed.
 impl<T> Copy for LocalIntern<T> {}
 
-impl<T: Eq + Hash + 'static> LocalIntern<T> {
+impl<T> LocalIntern<T> {
     fn get_pointer(&self) -> *const T {
         self.pointer
     }
+}
+
+impl<T: Eq + Hash + 'static> LocalIntern<T> {
     /// Intern a value in a thread-local way.  If this value has not
     /// previously been interned, then `new` will allocate a spot for
     /// the value on the heap.  Otherwise, it will return a pointer to
