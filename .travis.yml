@@ -7,7 +7,7 @@ addons:
 rust:
   - stable
   - nightly
-  - 1.44.1
+#   - 1.44.1
 
 jobs:
   fast_finish: true
