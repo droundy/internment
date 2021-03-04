@@ -146,8 +146,8 @@ impl<T> Clone for Intern<T> {
 /// because we never free the data pointed to by an `Intern`.
 impl<T> Copy for Intern<T> {}
 
-unsafe impl<T> Send for Intern<T> {}
-unsafe impl<T> Sync for Intern<T> {}
+unsafe impl<T: Send> Send for Intern<T> {}
+unsafe impl<T: Sync> Sync for Intern<T> {}
 
 impl<T: Eq + Hash + Send + 'static> Intern<T> {
     fn get_mutex() -> &'static Mutex<HashSet<Box<T>>> {
