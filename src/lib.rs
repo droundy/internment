@@ -130,8 +130,8 @@ fn like_doctest_localintern() {
     assert_eq!(&*x, "hello"); // dereference a Intern like a pointer\
 }
 
-pub struct Intern<T> {
-    pointer: *const T,
+pub struct Intern<T: 'static> {
+    pointer: &'static T,
 }
 
 impl<T> Clone for Intern<T> {
@@ -146,16 +146,16 @@ impl<T> Clone for Intern<T> {
 /// because we never free the data pointed to by an `Intern`.
 impl<T> Copy for Intern<T> {}
 
-unsafe impl<T: Send> Send for Intern<T> {}
-unsafe impl<T: Sync> Sync for Intern<T> {}
-
-impl<T: Eq + Hash + Send + 'static> Intern<T> {
-    fn get_mutex() -> &'static Mutex<HashSet<Box<T>>> {
-        match CONTAINER.try_get::<Mutex<HashSet<Box<T>>>>() {
+impl<T: Eq + Hash + Send + Sync + 'static> Intern<T> {
+    fn get_pointer(&self) -> *const T {
+        self.pointer as *const T
+    }
+    fn get_mutex() -> &'static Mutex<HashSet<&'static T>> {
+        match CONTAINER.try_get::<Mutex<HashSet<&'static T>>>() {
             Some(m) => m,
             None => {
-                CONTAINER.set::<Mutex<HashSet<Box<T>>>>(Mutex::new(HashSet::new()));
-                CONTAINER.get::<Mutex<HashSet<Box<T>>>>()
+                CONTAINER.set::<Mutex<HashSet<&'static T>>>(Mutex::new(HashSet::new()));
+                CONTAINER.get::<Mutex<HashSet<&'static T>>>()
             }
         }
     }
@@ -168,14 +168,11 @@ impl<T: Eq + Hash + Send + 'static> Intern<T> {
     /// a `HashSet` protected by a `Mutex`.
     pub fn new(val: T) -> Intern<T> {
         let mut m = Self::get_mutex().lock().unwrap();
-        if let Some(b) = m.get(&val) {
-            return Intern {
-                pointer: b.borrow(),
-            };
+        if let Some(&b) = m.get(&val) {
+            return Intern { pointer: b };
         }
-        let b = Box::new(val);
-        let p: *const T = b.borrow();
-        m.insert(b);
+        let p: &'static T = Box::leak(Box::new(val));
+        m.insert(p);
         return Intern { pointer: p };
     }
     /// Intern a value from a reference.
@@ -188,20 +185,17 @@ impl<T: Eq + Hash + Send + 'static> Intern<T> {
         T: Borrow<Q> + From<&'a Q>,
     {
         let mut m = Self::get_mutex().lock().unwrap();
-        if let Some(b) = m.get(val) {
-            return Intern {
-                pointer: b.borrow(),
-            };
+        if let Some(&b) = m.get(val) {
+            return Intern { pointer: b };
         }
-        let b = Box::new(T::from(val));
-        let p: *const T = b.borrow();
-        m.insert(b);
+        let p = Box::leak(Box::new(T::from(val)));
+        m.insert(p);
         return Intern { pointer: p };
     }
     /// See how many objects have been interned.  This may be helpful
     /// in analyzing memory use.
     pub fn num_objects_interned() -> usize {
-        if let Some(m) = CONTAINER.try_get::<Mutex<HashSet<Box<T>>>>() {
+        if let Some(m) = CONTAINER.try_get::<Mutex<HashSet<&'static T>>>() {
             return m.lock().unwrap().len();
         }
         0
@@ -227,11 +221,11 @@ fn sz<T>() -> u64 {
 impl<T: Debug> Fits64 for Intern<T> {
     unsafe fn from_u64(x: u64) -> Self {
         Intern {
-            pointer: ((x ^ heap_location() / sz::<T>()) * sz::<T>()) as *const T,
+            pointer: &*(((x ^ heap_location() / sz::<T>()) * sz::<T>()) as *const T),
         }
     }
     fn to_u64(self) -> u64 {
-        self.pointer as u64 / sz::<T>() ^ heap_location() / sz::<T>()
+        self.get_pointer() as u64 / sz::<T>() ^ heap_location() / sz::<T>()
     }
 }
 /// The `Fits64` implementation for `LocalIntern<T>` is designed to
@@ -358,6 +352,9 @@ type Untyped = Box<(dyn Any + Send + Sync + 'static)>;
 static ARC_CONTAINERS: OnceCell<DashMap<TypeId, Untyped>> = OnceCell::new();
 
 impl<T: Eq + Hash + Send + Sync + 'static> ArcIntern<T> {
+    fn get_pointer(&self) -> *const RefCount<T> {
+        self.pointer
+    }
     fn get_container() -> dashmap::mapref::one::Ref<'static, TypeId, Untyped> {
         let type_map = ARC_CONTAINERS.get_or_init(|| DashMap::new());
         // Prefer taking the read lock to reduce contention, only use entry api if necessary.
@@ -465,15 +462,12 @@ impl<T: Eq + Hash + Send + Sync + 'static> Clone for ArcIntern<T> {
     }
 }
 
-
 #[cfg(not(test))]
-fn yield_on_tests() {
-}
+fn yield_on_tests() {}
 #[cfg(test)]
 fn yield_on_tests() {
     std::thread::yield_now();
 }
-
 
 impl<T: Eq + Hash + Send + Sync> Drop for ArcIntern<T> {
     fn drop(&mut self) {
@@ -516,7 +510,7 @@ impl<T: Send + Sync + Hash + Eq> AsRef<T> for ArcIntern<T> {
 }
 impl<T> AsRef<T> for Intern<T> {
     fn as_ref(&self) -> &T {
-        unsafe { &*self.pointer }
+        self.pointer
     }
 }
 impl<T> AsRef<T> for LocalIntern<T> {
@@ -524,6 +518,7 @@ impl<T> AsRef<T> for LocalIntern<T> {
         unsafe { &*self.pointer }
     }
 }
+
 macro_rules! create_impls {
     ( $Intern:ident, $testname:ident,
       [$( $traits:ident ),*], [$( $newtraits:ident ),*] ) => {
@@ -548,7 +543,7 @@ macro_rules! create_impls {
 
         impl<T: $( $traits +)*> Pointer for $Intern<T> {
             fn fmt(&self, f: &mut std::fmt::Formatter) -> Result<(), std::fmt::Error> {
-                Pointer::fmt(&self.pointer, f)
+                Pointer::fmt(&self.get_pointer(), f)
             }
         }
 
@@ -570,13 +565,13 @@ macro_rules! create_impls {
         /// hash of the pointer with hash of the data itself.
         impl<T: $( $traits +)*> Hash for $Intern<T> {
             fn hash<H: Hasher>(&self, state: &mut H) {
-                self.pointer.hash(state);
+                self.get_pointer().hash(state);
             }
         }
 
         impl<T: $( $traits +)*> PartialEq for $Intern<T> {
             fn eq(&self, other: &$Intern<T>) -> bool {
-                self.pointer == other.pointer
+                self.get_pointer() == other.get_pointer()
             }
         }
         impl<T: $( $traits +)*> Eq for $Intern<T> {}
@@ -661,7 +656,7 @@ create_impls!(
     [Eq, Hash, Send, Sync],
     [Eq, Hash, Send, Sync]
 );
-create_impls!(Intern, intern_impl_tests, [], [Eq, Hash, Send]);
+create_impls!(Intern, intern_impl_tests, [], [Eq, Hash, Send, Sync]);
 create_impls!(LocalIntern, localintern_impl_tests, [], [Eq, Hash]);
 
 impl<T: Debug> Debug for Intern<T> {
@@ -728,7 +723,8 @@ fn test_intern_num_objects() {
     assert_eq!(Intern::<i32>::num_objects_interned(), 0);
     assert_eq!(Intern::new(5), Intern::new(5));
     {
-        let _interned = Intern::new(6);
+        let interned = Intern::new(6);
+        assert_eq!(*interned, 6);
         assert_eq!(Intern::<i32>::num_objects_interned(), 2);
     }
     {
@@ -758,8 +754,10 @@ fn multithreading1() {
             let drop_check = drop_check.clone();
             move || {
                 for _i in 0..100_000 {
-                    let _interned1 = ArcIntern::new(TestStructCount("foo".to_string(), 5, drop_check.clone()));
-                    let _interned2 = ArcIntern::new(TestStructCount("bar".to_string(), 10, drop_check.clone()));
+                    let _interned1 =
+                        ArcIntern::new(TestStructCount("foo".to_string(), 5, drop_check.clone()));
+                    let _interned2 =
+                        ArcIntern::new(TestStructCount("bar".to_string(), 10, drop_check.clone()));
                 }
             }
         }));
@@ -866,6 +864,9 @@ where
 impl<T> Copy for LocalIntern<T> {}
 
 impl<T: Eq + Hash + 'static> LocalIntern<T> {
+    fn get_pointer(&self) -> *const T {
+        self.pointer
+    }
     /// Intern a value in a thread-local way.  If this value has not
     /// previously been interned, then `new` will allocate a spot for
     /// the value on the heap.  Otherwise, it will return a pointer to
