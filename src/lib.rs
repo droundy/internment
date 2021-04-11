@@ -176,7 +176,7 @@ impl<T: Eq + Hash + Send + Sync + 'static> Intern<T> {
         }
         let p: &'static T = Box::leak(Box::new(val));
         m.insert(p);
-        return Intern { pointer: p };
+        Intern { pointer: p }
     }
     /// Intern a value from a reference.
     ///
@@ -193,7 +193,7 @@ impl<T: Eq + Hash + Send + Sync + 'static> Intern<T> {
         }
         let p = Box::leak(Box::new(T::from(val)));
         m.insert(p);
-        return Intern { pointer: p };
+        Intern { pointer: p }
     }
     /// See how many objects have been interned.  This may be helpful
     /// in analyzing memory use.
