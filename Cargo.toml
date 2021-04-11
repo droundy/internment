@@ -35,7 +35,7 @@ serde = { version = "1.0", optional = true }
 [dev-dependencies]
 
 quickcheck = "^0.9.2"
-easybench = { version = "1.0.0", git = "https://github.com/droundy/easybench-rs" }
+scaling = { git = "https://github.com/droundy/easybench-rs" }
 rand = "0.7.2"
 arc-interner = "0.5"
 
