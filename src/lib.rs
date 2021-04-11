@@ -176,7 +176,7 @@ impl<T: Eq + Hash + Send + Sync + 'static> Intern<T> {
         }
         let p: &'static T = Box::leak(Box::new(val));
         m.insert(p);
-        return Intern { pointer: p };
+        Intern { pointer: p }
     }
     /// Intern a value from a reference.
     ///
@@ -193,7 +193,7 @@ impl<T: Eq + Hash + Send + Sync + 'static> Intern<T> {
         }
         let p = Box::leak(Box::new(T::from(val)));
         m.insert(p);
-        return Intern { pointer: p };
+        Intern { pointer: p }
     }
     /// See how many objects have been interned.  This may be helpful
     /// in analyzing memory use.
@@ -359,7 +359,7 @@ impl<T: Eq + Hash + Send + Sync + 'static> ArcIntern<T> {
         self.pointer
     }
     fn get_container() -> dashmap::mapref::one::Ref<'static, TypeId, Untyped> {
-        let type_map = ARC_CONTAINERS.get_or_init(|| DashMap::new());
+        let type_map = ARC_CONTAINERS.get_or_init(DashMap::new);
         // Prefer taking the read lock to reduce contention, only use entry api if necessary.
         let boxed = if let Some(boxed) = type_map.get(&TypeId::of::<T>()) {
             boxed
