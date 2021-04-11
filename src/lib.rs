@@ -359,7 +359,7 @@ impl<T: Eq + Hash + Send + Sync + 'static> ArcIntern<T> {
         self.pointer
     }
     fn get_container() -> dashmap::mapref::one::Ref<'static, TypeId, Untyped> {
-        let type_map = ARC_CONTAINERS.get_or_init(|| DashMap::new());
+        let type_map = ARC_CONTAINERS.get_or_init(DashMap::new);
         // Prefer taking the read lock to reduce contention, only use entry api if necessary.
         let boxed = if let Some(boxed) = type_map.get(&TypeId::of::<T>()) {
             boxed
