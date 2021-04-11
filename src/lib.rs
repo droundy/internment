@@ -195,6 +195,11 @@ impl<T: Eq + Hash + Send + Sync + 'static> Intern<T> {
         m.insert(p);
         Intern { pointer: p }
     }
+    /// Get a long-lived reference to the data pointed to by an `Intern`, which
+    /// is never freed from the intern pool.
+    pub fn as_ref(self) -> &'static T {
+        self.pointer
+    }
     /// See how many objects have been interned.  This may be helpful
     /// in analyzing memory use.
     pub fn num_objects_interned() -> usize {
