@@ -1,15 +1,60 @@
-name: Rust
+on: [push, pull_request]
 
-on: [push]
+name: Continuous integration
 
 jobs:
-  build:
-
+  check:
+    name: Check
     runs-on: ubuntu-latest
-
+    strategy:
+      matrix:
+        rust:
+          - stable
+          - 1.44.1
     steps:
-    - uses: actions/checkout@v2
-    - name: Build
-      run: cargo build --verbose
-    - name: Run tests
-      run: cargo test --verbose
+      - uses: actions/checkout@v2
+      - uses: actions-rs/toolchain@v1
+        with:
+          profile: minimal
+          toolchain: ${{ matrix.rust }}
+          override: true
+      - uses: actions-rs/cargo@v1
+        with:
+          command: check
+          args: --features "arc, tinyset"
+
+  test:
+    name: Test Suite
+    runs-on: ubuntu-latest
+    strategy:
+      matrix:
+        rust:
+          - stable
+    steps:
+      - uses: actions/checkout@v2
+      - uses: actions-rs/toolchain@v1
+        with:
+          profile: minimal
+          toolchain: ${{ matrix.rust }}
+          override: true
+      - uses: actions-rs/cargo@v1
+        with:
+          command: test
+          args: --all-features
+  msrv:
+    name: Minimum supported rust version
+    runs-on: ubuntu-latest
+    strategy:
+      matrix:
+        rust:
+          - 1.44.1
+    steps:
+      - uses: actions/checkout@v2
+      - uses: actions-rs/toolchain@v1
+        with:
+          profile: minimal
+          toolchain: ${{ matrix.rust }}
+          override: true
+      - uses: actions-rs/cargo@v1
+        with:
+          command: test

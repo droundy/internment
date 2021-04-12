@@ -1,5 +1,12 @@
+
+#[cfg(feature = "bench")]
 use internment::{ArcIntern, Intern, LocalIntern};
 
+#[cfg(not(feature = "bench"))]
+fn main() {}
+
+
+#[cfg(feature = "bench")]
 fn main() {
     println!("^^^^^^^^^^^^^^^^^^^^^^");
     Intern::new(0i64);

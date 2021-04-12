@@ -1,8 +1,17 @@
-use easybench::{bench, bench_gen_env};
+#[cfg(feature = "bench")]
+use scaling::{bench, bench_gen_env};
+#[cfg(feature = "bench")]
 use std::collections::HashSet;
 
+#[cfg(feature = "bench")]
 use internment::{ArcIntern, Intern, LocalIntern};
 
+#[cfg(not(feature = "bench"))]
+fn main() {
+    println!("Enable bench feature if you want a benchmark")
+}
+
+#[cfg(feature = "bench")]
 fn main() {
     Intern::new(0i64);
     LocalIntern::new(0i64);

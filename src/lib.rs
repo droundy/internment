@@ -45,19 +45,26 @@
 //! ```
 
 #[cfg(test)]
+#[cfg(feature = "tinyset")]
 use quickcheck::quickcheck;
 
 use lazy_static::lazy_static;
 
 mod boxedset;
 use boxedset::HashSet;
+#[cfg(feature = "arc")]
 use dashmap::{mapref::entry::Entry, DashMap};
+#[cfg(feature = "arc")]
 use once_cell::sync::OnceCell;
 use std::cell::RefCell;
-use std::sync::atomic::{AtomicUsize, Ordering};
+use std::sync::atomic::AtomicUsize;
+#[cfg(feature = "arc")]
+use std::sync::atomic::Ordering;
 use std::sync::Mutex;
 
-use std::any::{Any, TypeId};
+use std::any::Any;
+#[cfg(feature = "arc")]
+use std::any::TypeId;
 use std::borrow::Borrow;
 use std::convert::AsRef;
 use std::fmt::{Debug, Display, Pointer};
@@ -66,6 +73,7 @@ use std::ops::Deref;
 
 #[cfg(feature = "serde")]
 use serde::{Deserialize, Deserializer, Serialize, Serializer};
+#[cfg(feature = "tinyset")]
 use tinyset::Fits64;
 
 lazy_static! {
@@ -112,6 +120,7 @@ fn like_doctest_intern() {
     assert_eq!(&*x, "hello"); // dereference a Intern like a pointer\
 }
 #[test]
+#[cfg(feature = "arc")]
 fn like_doctest_arcintern() {
     let x = ArcIntern::new("hello".to_string());
     let y = ArcIntern::<String>::from("world");
@@ -210,6 +219,7 @@ impl<T: Eq + Hash + Send + Sync + 'static> Intern<T> {
     }
 }
 
+#[cfg(feature = "tinyset")]
 fn heap_location() -> u64 {
     lazy_static! {
         static ref HEAP_LOCATION: Box<usize> = Box::new(0);
@@ -217,6 +227,7 @@ fn heap_location() -> u64 {
     let p: *const usize = (*HEAP_LOCATION).borrow();
     p as u64
 }
+#[cfg(feature = "tinyset")]
 fn sz<T>() -> u64 {
     std::mem::align_of::<T>() as u64
 }
@@ -226,6 +237,7 @@ fn sz<T>() -> u64 {
 /// significant bits of the resulting u64 be zero, which will mean
 /// that `Set64` (which is space-efficient in storing small integers)
 /// can store this result in fewer than 8 bytes.
+#[cfg(feature = "tinyset")]
 impl<T: Debug> Fits64 for Intern<T> {
     unsafe fn from_u64(x: u64) -> Self {
         Intern {
@@ -242,6 +254,7 @@ impl<T: Debug> Fits64 for Intern<T> {
 /// significant bits of the resulting u64 be zero, which will mean
 /// that `Set64` (which is space-efficient in storing small integers)
 /// can store this result in fewer than 8 bytes.
+#[cfg(feature = "tinyset")]
 impl<T: Debug> Fits64 for LocalIntern<T> {
     unsafe fn from_u64(x: u64) -> Self {
         LocalIntern {
@@ -253,6 +266,7 @@ impl<T: Debug> Fits64 for LocalIntern<T> {
     }
 }
 #[test]
+#[cfg(feature = "tinyset")]
 fn test_localintern_set64() {
     use tinyset::Set64;
     let mut s = Set64::<LocalIntern<u32>>::new();
@@ -267,6 +281,7 @@ fn test_localintern_set64() {
     assert_eq!(s.len(), 3);
 }
 #[test]
+#[cfg(feature = "tinyset")]
 fn test_intern_set64() {
     use tinyset::Set64;
     let mut s = Set64::<Intern<u32>>::new();
@@ -283,7 +298,7 @@ fn test_intern_set64() {
 
 /// A pointer to a reference-counted interned object.
 ///
-/// The interned object will be held in memory only until its
+/// This type requires feature "arc".  The interned object will be held in memory only until its
 /// reference count reaches zero.
 ///
 /// # Example
@@ -307,11 +322,14 @@ fn test_intern_set64() {
 /// assert_eq!(x, ArcIntern::from("hello"));
 /// assert_eq!(&*x, "hello"); // dereference an ArcIntern like a pointer
 /// ```
+#[cfg(feature = "arc")]
 pub struct ArcIntern<T: Eq + Hash + Send + Sync + 'static> {
     pointer: *const RefCount<T>,
 }
 
+#[cfg(feature = "arc")]
 unsafe impl<T: Eq + Hash + Send + Sync> Send for ArcIntern<T> {}
+#[cfg(feature = "arc")]
 unsafe impl<T: Eq + Hash + Send + Sync> Sync for ArcIntern<T> {}
 
 #[derive(Debug)]
@@ -333,6 +351,7 @@ impl<T: Hash> Hash for RefCount<T> {
 
 #[derive(Eq, PartialEq, Hash)]
 struct BoxRefCount<T>(Box<RefCount<T>>);
+#[cfg(feature = "arc")]
 impl<T> BoxRefCount<T> {
     fn into_inner(self) -> T {
         self.0.data
@@ -355,10 +374,14 @@ impl<T> Deref for BoxRefCount<T> {
     }
 }
 
+#[cfg(feature = "arc")]
 type Container<T> = DashMap<BoxRefCount<T>, ()>;
+#[cfg(feature = "arc")]
 type Untyped = Box<(dyn Any + Send + Sync + 'static)>;
+#[cfg(feature = "arc")]
 static ARC_CONTAINERS: OnceCell<DashMap<TypeId, Untyped>> = OnceCell::new();
 
+#[cfg(feature = "arc")]
 impl<T: Eq + Hash + Send + Sync + 'static> ArcIntern<T> {
     fn get_pointer(&self) -> *const RefCount<T> {
         self.pointer
@@ -456,6 +479,7 @@ impl<T: Eq + Hash + Send + Sync + 'static> ArcIntern<T> {
     }
 }
 
+#[cfg(feature = "arc")]
 impl<T: Eq + Hash + Send + Sync + 'static> Clone for ArcIntern<T> {
     fn clone(&self) -> Self {
         // First increment the count.  Using a relaxed ordering is
@@ -471,12 +495,15 @@ impl<T: Eq + Hash + Send + Sync + 'static> Clone for ArcIntern<T> {
 }
 
 #[cfg(not(test))]
+#[cfg(feature = "arc")]
 fn yield_on_tests() {}
 #[cfg(test)]
+#[cfg(feature = "arc")]
 fn yield_on_tests() {
     std::thread::yield_now();
 }
 
+#[cfg(feature = "arc")]
 impl<T: Eq + Hash + Send + Sync> Drop for ArcIntern<T> {
     fn drop(&mut self) {
         // (Quoting from std::sync::Arc again): Because `fetch_sub` is
@@ -511,6 +538,7 @@ impl<T: Eq + Hash + Send + Sync> Drop for ArcIntern<T> {
     }
 }
 
+#[cfg(feature = "arc")]
 impl<T: Send + Sync + Hash + Eq> AsRef<T> for ArcIntern<T> {
     fn as_ref(&self) -> &T {
         unsafe { &(*self.pointer).data }
@@ -658,6 +686,7 @@ macro_rules! create_impls {
     }
 }
 
+#[cfg(feature = "arc")]
 create_impls!(
     ArcIntern,
     arcintern_impl_tests,
@@ -669,18 +698,19 @@ create_impls!(LocalIntern, localintern_impl_tests, [], [Eq, Hash]);
 
 impl<T: Debug> Debug for Intern<T> {
     fn fmt(&self, f: &mut std::fmt::Formatter) -> Result<(), std::fmt::Error> {
-        std::fmt::Display::fmt(&self.to_u64(), f)?;
+        std::fmt::Debug::fmt(&self.get_pointer(), f)?;
         f.write_str(" : ")?;
         self.deref().fmt(f)
     }
 }
 impl<T: Debug> Debug for LocalIntern<T> {
     fn fmt(&self, f: &mut std::fmt::Formatter) -> Result<(), std::fmt::Error> {
-        std::fmt::Display::fmt(&self.to_u64(), f)?;
+        std::fmt::Debug::fmt(&self.pointer, f)?;
         f.write_str(" : ")?;
         self.deref().fmt(f)
     }
 }
+#[cfg(feature = "arc")]
 impl<T: Eq + Hash + Send + Sync + Debug> Debug for ArcIntern<T> {
     fn fmt(&self, f: &mut std::fmt::Formatter) -> Result<(), std::fmt::Error> {
         Pointer::fmt(&self.pointer, f)?;
@@ -690,6 +720,7 @@ impl<T: Eq + Hash + Send + Sync + Debug> Debug for ArcIntern<T> {
 }
 
 #[test]
+#[cfg(feature = "arc")]
 fn test_arcintern_freeing() {
     assert_eq!(ArcIntern::<i32>::num_objects_interned(), 0);
     assert_eq!(ArcIntern::new(5), ArcIntern::new(5));
@@ -715,6 +746,7 @@ fn test_arcintern_freeing() {
     assert_eq!(ArcIntern::new(6), six);
 }
 
+#[cfg(feature = "arc")]
 #[test]
 fn test_arcintern_nested_drop() {
     #[derive(PartialEq, Eq, Hash)]
@@ -751,6 +783,7 @@ pub struct TestStructCount(String, u64, std::sync::Arc<bool>);
 
 // Quickly create and destroy a small number of interned objects from
 // multiple threads.
+#[cfg(feature = "arc")]
 #[test]
 fn multithreading1() {
     use std::sync::Arc;
@@ -944,6 +977,7 @@ fn test_localintern_num_objects() {
 }
 
 #[cfg(test)]
+#[cfg(feature = "tinyset")]
 quickcheck! {
     fn fits64_localintern(s: String) -> bool {
         tinyset::set64::test_fits64(LocalIntern::new(s));
