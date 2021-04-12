@@ -62,6 +62,9 @@ use std::sync::atomic::AtomicUsize;
 use std::sync::atomic::Ordering;
 use std::sync::Mutex;
 
+mod container;
+use container::TypeHolder;
+
 use std::any::Any;
 #[cfg(feature = "arc")]
 use std::any::TypeId;
@@ -879,7 +882,7 @@ impl<T> Clone for LocalIntern<T> {
 
 thread_local! {
     #[allow(unused)]
-    pub static LOCAL_STUFF: RefCell<Vec<Box<dyn Any>>> = RefCell::new(Vec::new());
+    pub static LOCAL_STUFF: RefCell<TypeHolder> = RefCell::new(TypeHolder::new());
 }
 pub fn with_local<F, T, R>(f: F) -> R
 where
@@ -887,15 +890,7 @@ where
     T: Any + Default,
 {
     LOCAL_STUFF.with(|v| -> R {
-        for x in v.borrow_mut().iter_mut() {
-            if let Some(xx) = x.downcast_mut() {
-                return f(xx);
-            }
-        }
-        let mut b = Box::new(T::default());
-        let r = f(&mut b);
-        v.borrow_mut().push(b);
-        r
+        f(v.borrow_mut().get_type_mut())
     })
 }
 
