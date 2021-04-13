@@ -57,7 +57,7 @@ use std::cell::RefCell;
 use std::sync::atomic::AtomicUsize;
 #[cfg(feature = "arc")]
 use std::sync::atomic::Ordering;
-use std::sync::Mutex;
+use parking_lot::Mutex;
 
 mod container;
 use container::{TypeHolder, TypeHolderSend};
@@ -164,7 +164,8 @@ where
 {
     static INTERN_CONTAINERS: OnceCell<Mutex<TypeHolderSend>> = OnceCell::new();
     let type_map = INTERN_CONTAINERS.get_or_init(|| Mutex::new(TypeHolderSend::new()));
-    f(type_map.lock().unwrap().get_type_mut())
+    // static INTERN_CONTAINERS: Mutex<TypeHolderSend> = Mutex::new(TypeHolderSend::new());
+    // f(INTERN_CONTAINERS.lock().get_type_mut())
 }
 
 impl<T: Eq + Hash + Send + Sync + 'static> Intern<T> {
