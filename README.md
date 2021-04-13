@@ -10,13 +10,13 @@ You have three options with the internment crate:
 
 1. `Intern`, which will never free your data.  This means that an
 `Intern` is `Copy`, so you can make as many copies of the pointer
-as you may care to at no cost.
+as you may care to at no cost.  Its implementation also uses no unsafe code.
 
 2. `LocalIntern`, which will only free your data when the calling
-thread exits.  This means that a `LocalIntern` is `Copy`, so you can
-make as many copies of the pointer as you may care to at no cost.
-However, you cannot share a `LocalIntern` with another thread.  On the
-plus side, it is faster to create a `LocalIntern` than an `Intern`.
+thread exits.  This means that a `LocalIntern` is also `Copy`, so you can
+make as many copies of the pointer as you may care to at no cost.  `LocalIntern`,
+however, is not `Send`, so you cannot share a `LocalIntern` with another thread.  On the
+plus side, it is slightly faster to create a `LocalIntern` than an `Intern`.
 
 3. `ArcIntern`, which reference-counts your data and frees it when
 there are no more references.  `ArcIntern` will keep memory use
@@ -81,7 +81,7 @@ The primary disadvantages of arena allocation relative to
 
 To balance this, because `internment` has tokens that are globally
 valid, it uses a `Mutex` to protect its internal data, which is taken
-on the interning of new data as well as changing of reference counts,
+on the interning of new data,
 which is probably slower than the other interning crates (unless you
 want to use their tokens across threads, in which case you'd have to
 put the pool in a `Mutex` and pay the same penalty).
