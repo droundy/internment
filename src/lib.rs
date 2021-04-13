@@ -48,13 +48,10 @@
 #[cfg(feature = "tinyset")]
 use quickcheck::quickcheck;
 
-use lazy_static::lazy_static;
-
 mod boxedset;
 use boxedset::HashSet;
 #[cfg(feature = "arc")]
 use dashmap::{mapref::entry::Entry, DashMap};
-#[cfg(feature = "arc")]
 use once_cell::sync::OnceCell;
 use std::cell::RefCell;
 use std::sync::atomic::AtomicUsize;
@@ -63,7 +60,7 @@ use std::sync::atomic::Ordering;
 use std::sync::Mutex;
 
 mod container;
-use container::TypeHolder;
+use container::{TypeHolder, TypeHolderSend};
 
 use std::any::Any;
 #[cfg(feature = "arc")]
@@ -78,10 +75,6 @@ use std::ops::Deref;
 use serde::{Deserialize, Deserializer, Serialize, Serializer};
 #[cfg(feature = "tinyset")]
 use tinyset::Fits64;
-
-lazy_static! {
-    static ref CONTAINER: state::Container = state::Container::new();
-}
 
 /// A pointer to an interned object.
 ///
@@ -164,16 +157,17 @@ impl<T> Intern<T> {
     }
 }
 
+fn with_global<F, T, R>(f: F) -> R
+where
+    F: FnOnce(&mut T) -> R,
+    T: Any + Send + Default,
+{
+    static INTERN_CONTAINERS: OnceCell<Mutex<TypeHolderSend>> = OnceCell::new();
+    let type_map = INTERN_CONTAINERS.get_or_init(|| Mutex::new(TypeHolderSend::new()));
+    f(type_map.lock().unwrap().get_type_mut())
+}
+
 impl<T: Eq + Hash + Send + Sync + 'static> Intern<T> {
-    fn get_mutex() -> &'static Mutex<HashSet<&'static T>> {
-        match CONTAINER.try_get::<Mutex<HashSet<&'static T>>>() {
-            Some(m) => m,
-            None => {
-                CONTAINER.set::<Mutex<HashSet<&'static T>>>(Mutex::new(HashSet::new()));
-                CONTAINER.get::<Mutex<HashSet<&'static T>>>()
-            }
-        }
-    }
     /// Intern a value.  If this value has not previously been
     /// interned, then `new` will allocate a spot for the value on the
     /// heap.  Otherwise, it will return a pointer to the object
@@ -182,13 +176,14 @@ impl<T: Eq + Hash + Send + Sync + 'static> Intern<T> {
     /// Note that `Intern::new` is a bit slow, since it needs to check
     /// a `HashSet` protected by a `Mutex`.
     pub fn new(val: T) -> Intern<T> {
-        let mut m = Self::get_mutex().lock().unwrap();
-        if let Some(&b) = m.get(&val) {
-            return Intern { pointer: b };
-        }
-        let p: &'static T = Box::leak(Box::new(val));
-        m.insert(p);
-        Intern { pointer: p }
+        with_global(|m: &mut HashSet<&'static T>| -> Intern<T> {
+            if let Some(&b) = m.get(&val) {
+                return Intern { pointer: b };
+            }
+            let p: &'static T = Box::leak(Box::new(val));
+            m.insert(p);
+            Intern { pointer: p }
+        })
     }
     /// Intern a value from a reference.
     ///
@@ -199,13 +194,14 @@ impl<T: Eq + Hash + Send + Sync + 'static> Intern<T> {
     where
         T: Borrow<Q> + From<&'a Q>,
     {
-        let mut m = Self::get_mutex().lock().unwrap();
-        if let Some(&b) = m.get(val) {
-            return Intern { pointer: b };
-        }
-        let p = Box::leak(Box::new(T::from(val)));
-        m.insert(p);
-        Intern { pointer: p }
+        with_global(|m: &mut HashSet<&'static T>| -> Intern<T> {
+            if let Some(&b) = m.get(val) {
+                return Intern { pointer: b };
+            }
+            let p = Box::leak(Box::new(T::from(val)));
+            m.insert(p);
+            Intern { pointer: p }
+        })
     }
     /// Get a long-lived reference to the data pointed to by an `Intern`, which
     /// is never freed from the intern pool.
@@ -215,19 +211,16 @@ impl<T: Eq + Hash + Send + Sync + 'static> Intern<T> {
     /// See how many objects have been interned.  This may be helpful
     /// in analyzing memory use.
     pub fn num_objects_interned() -> usize {
-        if let Some(m) = CONTAINER.try_get::<Mutex<HashSet<&'static T>>>() {
-            return m.lock().unwrap().len();
-        }
-        0
+        with_global(|m: &mut HashSet<&'static T>| -> usize {
+            m.len()
+        })
     }
 }
 
 #[cfg(feature = "tinyset")]
 fn heap_location() -> u64 {
-    lazy_static! {
-        static ref HEAP_LOCATION: Box<usize> = Box::new(0);
-    }
-    let p: *const usize = (*HEAP_LOCATION).borrow();
+    static HEAP_LOCATION: OnceCell<Box<usize>> = OnceCell::new();
+    let p: *const usize = HEAP_LOCATION.get_or_init(|| Box::new(0)).borrow();
     p as u64
 }
 #[cfg(feature = "tinyset")]
@@ -884,14 +877,12 @@ thread_local! {
     #[allow(unused)]
     pub static LOCAL_STUFF: RefCell<TypeHolder> = RefCell::new(TypeHolder::new());
 }
-pub fn with_local<F, T, R>(f: F) -> R
+fn with_local<F, T, R>(f: F) -> R
 where
     F: FnOnce(&mut T) -> R,
     T: Any + Default,
 {
-    LOCAL_STUFF.with(|v| -> R {
-        f(v.borrow_mut().get_type_mut())
-    })
+    LOCAL_STUFF.with(|v| -> R { f(v.borrow_mut().get_type_mut()) })
 }
 
 /// An `LocalIntern` is `Copy`, which is unusal for a pointer.  This
