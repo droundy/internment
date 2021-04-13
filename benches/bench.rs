@@ -20,6 +20,7 @@ fn main() {
     let s1: HashSet<_> = (1..3000)
         .map(|i| format!("hello this is a pretty long string {:500}", i))
         .collect();
+    let s_short: HashSet<_> = (1..3000).map(|i| format!("{}", i)).collect();
     let s2: HashSet<_> = (1..1000)
         .map(|i| format!("hello this is a pretty long string also {:500}", i))
         .collect();
@@ -39,6 +40,7 @@ fn main() {
             n
         }
         mkset(&mut s1.clone());
+        println!("String::new short {}", bench_gen_env(|| s_short.clone(), mkset));
         println!("String::new {}", bench_gen_env(|| s1.clone(), mkset));
         fn rmset(s: &mut (HashSet<String>, HashSet<String>)) {
             for x in s.1.iter() {
@@ -71,10 +73,6 @@ fn main() {
             n
         }
         mkset(&mut s1.clone());
-        println!(
-            "Intern<String>::new {}",
-            bench_gen_env(|| s1.clone(), mkset)
-        );
         fn mksetfrom(s: &mut HashSet<String>) -> HashSet<Intern<String>> {
             let mut n = HashSet::new();
             for x in s.iter() {
@@ -82,6 +80,13 @@ fn main() {
             }
             n
         }
+        println!("Intern<String>::new short {}", bench_gen_env(|| s_short.clone(), mkset));
+        println!("Intern<String>::new short {}", bench_gen_env(|| s_short.clone(), mkset));
+        println!("Intern<String>::from short {}", bench_gen_env(|| s_short.clone(), mkset));
+        println!(
+            "Intern<String>::new {}",
+            bench_gen_env(|| s1.clone(), mkset)
+        );
         println!(
             "Intern<String>::from {}",
             bench_gen_env(|| s1.clone(), mksetfrom)
@@ -119,6 +124,7 @@ fn main() {
             n
         }
         mkset(&mut s1.clone());
+        println!("LocalIntern<String>::new short {}", bench_gen_env(|| s_short.clone(), mkset));
         println!(
             "LocalIntern<String>::new {}",
             bench_gen_env(|| s1.clone(), mkset)
@@ -167,6 +173,7 @@ fn main() {
             n
         }
         mkset(&mut s1.clone());
+        println!("ArcIntern<String>::new short {}", bench_gen_env(|| s_short.clone(), mkset));
         println!(
             "ArcIntern<String>::new {}",
             bench_gen_env(|| s1.clone(), mkset)
@@ -221,6 +228,7 @@ fn main() {
             n
         }
         mkset(&mut s1.clone());
+        println!("arc_interner::ArcIntern<String>::new short {}", bench_gen_env(|| s_short.clone(), mkset));
         println!(
             "arc_interner::ArcIntern<String>::new {}",
             bench_gen_env(|| s1.clone(), mkset)
