@@ -164,6 +164,7 @@ where
 {
     static INTERN_CONTAINERS: OnceCell<Mutex<TypeHolderSend>> = OnceCell::new();
     let type_map = INTERN_CONTAINERS.get_or_init(|| Mutex::new(TypeHolderSend::new()));
+    f(type_map.lock().get_type_mut())
     // static INTERN_CONTAINERS: Mutex<TypeHolderSend> = Mutex::new(TypeHolderSend::new());
     // f(INTERN_CONTAINERS.lock().get_type_mut())
 }
