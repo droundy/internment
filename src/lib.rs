@@ -904,8 +904,7 @@ impl<T: Eq + Hash + 'static> LocalIntern<T> {
     /// the value on the heap.  Otherwise, it will return a pointer to
     /// the object previously allocated.
     ///
-    /// Note that `LocalIntern::new` is a bit slow, since it needs to check
-    /// a `HashMap` protected by a `Mutex`.
+    /// Note that `LocalIntern::new` is a bit slow.
     pub fn new(val: T) -> LocalIntern<T> {
         with_local(|m: &mut HashSet<Box<T>>| -> LocalIntern<T> {
             if let Some(ref b) = m.get(&val) {
