@@ -373,26 +373,27 @@ impl<T> Deref for BoxRefCount<T> {
 }
 
 #[cfg(feature = "arc")]
-type Container<T> = DashMap<BoxRefCount<T>, ()>;
+use ahash::RandomState;
+type Container<T> = DashMap<BoxRefCount<T>, (), RandomState>;
 #[cfg(feature = "arc")]
 type Untyped = Box<(dyn Any + Send + Sync + 'static)>;
 #[cfg(feature = "arc")]
-static ARC_CONTAINERS: OnceCell<DashMap<TypeId, Untyped>> = OnceCell::new();
+static ARC_CONTAINERS: OnceCell<DashMap<TypeId, Untyped, RandomState>> = OnceCell::new();
 
 #[cfg(feature = "arc")]
 impl<T: Eq + Hash + Send + Sync + 'static> ArcIntern<T> {
     fn get_pointer(&self) -> *const RefCount<T> {
         self.pointer
     }
-    fn get_container() -> dashmap::mapref::one::Ref<'static, TypeId, Untyped> {
-        let type_map = ARC_CONTAINERS.get_or_init(DashMap::new);
+    fn get_container() -> dashmap::mapref::one::Ref<'static, TypeId, Untyped, RandomState> {
+        let type_map = ARC_CONTAINERS.get_or_init(|| DashMap::with_hasher(RandomState::new()));
         // Prefer taking the read lock to reduce contention, only use entry api if necessary.
         let boxed = if let Some(boxed) = type_map.get(&TypeId::of::<T>()) {
             boxed
         } else {
             type_map
                 .entry(TypeId::of::<T>())
-                .or_insert_with(|| Box::new(Container::<T>::new()))
+                .or_insert_with(|| Box::new(Container::<T>::with_hasher(RandomState::new())))
                 .downgrade()
         };
         boxed
