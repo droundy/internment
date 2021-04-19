@@ -40,7 +40,10 @@ fn main() {
             n
         }
         mkset(&mut s1.clone());
-        println!("String::new short {}", bench_gen_env(|| s_short.clone(), mkset));
+        println!(
+            "String::new short {}",
+            bench_gen_env(|| s_short.clone(), mkset)
+        );
         println!("String::new {}", bench_gen_env(|| s1.clone(), mkset));
         fn rmset(s: &mut (HashSet<String>, HashSet<String>)) {
             for x in s.1.iter() {
@@ -52,6 +55,32 @@ fn main() {
         println!(
             "String::compare/hash {}",
             bench_gen_env(|| (s1.clone(), s2.clone()), rmset)
+        );
+
+        println!(
+            "String sort {}",
+            bench_gen_env(|| s1.iter().cloned().collect::<Vec<_>>(), |v| v.sort())
+        );
+        println!(
+            "Box<String> sort {}",
+            bench_gen_env(
+                || s1.iter().map(|s| Box::new(s.clone())).collect::<Vec<_>>(),
+                |v| v.sort()
+            )
+        );
+        println!(
+            "String any eq {}",
+            bench_gen_env(
+                || s1.iter().cloned().collect::<Vec<_>>(),
+                |v| v.iter().any(|s| s == "hello this is a pretty long string")
+            )
+        );
+        println!(
+            "Box<String> any eq {}",
+            bench_gen_env(
+                || s1.iter().map(|s| Box::new(s.clone())).collect::<Vec<_>>(),
+                |v| v.iter().any(|s| s.as_str() == "hello this is a pretty long string")
+            )
         );
     }
     println!();
@@ -80,9 +109,18 @@ fn main() {
             }
             n
         }
-        println!("Intern<String>::new short {}", bench_gen_env(|| s_short.clone(), mkset));
-        println!("Intern<String>::new short {}", bench_gen_env(|| s_short.clone(), mkset));
-        println!("Intern<String>::from short {}", bench_gen_env(|| s_short.clone(), mkset));
+        println!(
+            "Intern<String>::new short {}",
+            bench_gen_env(|| s_short.clone(), mkset)
+        );
+        println!(
+            "Intern<String>::new short {}",
+            bench_gen_env(|| s_short.clone(), mkset)
+        );
+        println!(
+            "Intern<String>::from short {}",
+            bench_gen_env(|| s_short.clone(), mkset)
+        );
         println!(
             "Intern<String>::new {}",
             bench_gen_env(|| s1.clone(), mkset)
@@ -101,6 +139,26 @@ fn main() {
         println!(
             "Intern<String>::compare/hash {}",
             bench_gen_env(|| (s1.clone(), s2.clone()), rmset)
+        );
+
+        println!(
+            "Intern<String> sort {}",
+            bench_gen_env(|| s1.iter().cloned().collect::<Vec<_>>(), |v| v.sort())
+        );
+        println!(
+            "Intern<String> any eq str {}",
+            bench_gen_env(
+                || s1.iter().cloned().collect::<Vec<_>>(),
+                |v| v.iter().any(|s| s.as_str() == "hello this is a pretty long string")
+            )
+        );
+        let value = Intern::new("hello this is a pretty long string".to_string());
+        println!(
+            "Intern<String> any eq {}",
+            bench_gen_env(
+                || s1.iter().cloned().collect::<Vec<_>>(),
+                |v| v.iter().any(|s| *s == value)
+            )
         );
     }
     let i = Intern::new(7i64);
@@ -124,7 +182,10 @@ fn main() {
             n
         }
         mkset(&mut s1.clone());
-        println!("LocalIntern<String>::new short {}", bench_gen_env(|| s_short.clone(), mkset));
+        println!(
+            "LocalIntern<String>::new short {}",
+            bench_gen_env(|| s_short.clone(), mkset)
+        );
         println!(
             "LocalIntern<String>::new {}",
             bench_gen_env(|| s1.clone(), mkset)
@@ -151,6 +212,18 @@ fn main() {
             "LocalIntern<String>::compare/hash {}",
             bench_gen_env(|| (s1.clone(), s2.clone()), rmset)
         );
+        println!(
+            "LocalIntern<String> sort {}",
+            bench_gen_env(|| s1.iter().cloned().collect::<Vec<_>>(), |v| v.sort())
+        );
+        let value = LocalIntern::new("hello this is a pretty long string".to_string());
+        println!(
+            "LocalIntern<String> any eq {}",
+            bench_gen_env(
+                || s1.iter().cloned().collect::<Vec<_>>(),
+                |v| v.iter().any(|s| *s == value)
+            )
+        );
     }
     let i = LocalIntern::new(7i64);
     println!("LocalIntern<i64>::clone {}", bench(|| i.clone()));
@@ -173,7 +246,10 @@ fn main() {
             n
         }
         mkset(&mut s1.clone());
-        println!("ArcIntern<String>::new short {}", bench_gen_env(|| s_short.clone(), mkset));
+        println!(
+            "ArcIntern<String>::new short {}",
+            bench_gen_env(|| s_short.clone(), mkset)
+        );
         println!(
             "ArcIntern<String>::new {}",
             bench_gen_env(|| s1.clone(), mkset)
@@ -199,6 +275,18 @@ fn main() {
         println!(
             "ArcIntern<String>::compare/hash {}",
             bench_gen_env(|| (s1.clone(), s2.clone()), rmset)
+        );
+        println!(
+            "ArcIntern<String> sort {}",
+            bench_gen_env(|| s1.iter().cloned().collect::<Vec<_>>(), |v| v.sort())
+        );
+        let value = ArcIntern::new("hello this is a pretty long string".to_string());
+        println!(
+            "ArcIntern<String> any eq {}",
+            bench_gen_env(
+                || s1.iter().cloned().collect::<Vec<_>>(),
+                |v| v.iter().any(|s| *s == value)
+            )
         );
     }
     let i = ArcIntern::new(7i64);
@@ -228,7 +316,10 @@ fn main() {
             n
         }
         mkset(&mut s1.clone());
-        println!("arc_interner::ArcIntern<String>::new short {}", bench_gen_env(|| s_short.clone(), mkset));
+        println!(
+            "arc_interner::ArcIntern<String>::new short {}",
+            bench_gen_env(|| s_short.clone(), mkset)
+        );
         println!(
             "arc_interner::ArcIntern<String>::new {}",
             bench_gen_env(|| s1.clone(), mkset)
@@ -256,6 +347,10 @@ fn main() {
         println!(
             "arc_interner::ArcIntern<String>::compare/hash {}",
             bench_gen_env(|| (s1.clone(), s2.clone()), rmset)
+        );
+        println!(
+            "arc_interner::ArcIntern<String> sort {}",
+            bench_gen_env(|| s1.iter().cloned().collect::<Vec<_>>(), |v| v.sort())
         );
     }
     let i = arc_interner::ArcIntern::new(7i64);

@@ -374,6 +374,7 @@ impl<T> Deref for BoxRefCount<T> {
 
 #[cfg(feature = "arc")]
 use ahash::RandomState;
+#[cfg(feature = "arc")]
 type Container<T> = DashMap<BoxRefCount<T>, (), RandomState>;
 #[cfg(feature = "arc")]
 type Untyped = Box<(dyn Any + Send + Sync + 'static)>;
