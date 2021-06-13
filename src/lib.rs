@@ -52,7 +52,6 @@ mod boxedset;
 use boxedset::HashSet;
 #[cfg(feature = "arc")]
 use dashmap::{mapref::entry::Entry, DashMap};
-use once_cell::sync::OnceCell;
 use std::cell::RefCell;
 use std::sync::atomic::AtomicUsize;
 #[cfg(feature = "arc")]
@@ -162,11 +161,8 @@ where
     F: FnOnce(&mut T) -> R,
     T: Any + Send + Default,
 {
-    static INTERN_CONTAINERS: OnceCell<Mutex<TypeHolderSend>> = OnceCell::new();
-    let type_map = INTERN_CONTAINERS.get_or_init(|| Mutex::new(TypeHolderSend::new()));
-    f(type_map.lock().get_type_mut())
-    // static INTERN_CONTAINERS: Mutex<TypeHolderSend> = Mutex::new(TypeHolderSend::new());
-    // f(INTERN_CONTAINERS.lock().get_type_mut())
+    static INTERN_CONTAINERS: Mutex<TypeHolderSend> = parking_lot::const_mutex(TypeHolderSend::new());
+    f(INTERN_CONTAINERS.lock().get_type_mut())
 }
 
 impl<T: Eq + Hash + Send + Sync + 'static> Intern<T> {
@@ -221,6 +217,7 @@ impl<T: Eq + Hash + Send + Sync + 'static> Intern<T> {
 
 #[cfg(feature = "tinyset")]
 fn heap_location() -> u64 {
+    use once_cell::sync::OnceCell;
     static HEAP_LOCATION: OnceCell<Box<usize>> = OnceCell::new();
     let p: *const usize = HEAP_LOCATION.get_or_init(|| Box::new(0)).borrow();
     p as u64
@@ -378,8 +375,6 @@ use ahash::RandomState;
 type Container<T> = DashMap<BoxRefCount<T>, (), RandomState>;
 #[cfg(feature = "arc")]
 type Untyped = Box<(dyn Any + Send + Sync + 'static)>;
-#[cfg(feature = "arc")]
-static ARC_CONTAINERS: OnceCell<DashMap<TypeId, Untyped, RandomState>> = OnceCell::new();
 
 #[cfg(feature = "arc")]
 impl<T: Eq + Hash + Send + Sync + 'static> ArcIntern<T> {
@@ -387,6 +382,8 @@ impl<T: Eq + Hash + Send + Sync + 'static> ArcIntern<T> {
         self.pointer
     }
     fn get_container() -> dashmap::mapref::one::Ref<'static, TypeId, Untyped, RandomState> {
+        use once_cell::sync::OnceCell;
+        static ARC_CONTAINERS: OnceCell<DashMap<TypeId, Untyped, RandomState>> = OnceCell::new();
         let type_map = ARC_CONTAINERS.get_or_init(|| DashMap::with_hasher(RandomState::new()));
         // Prefer taking the read lock to reduce contention, only use entry api if necessary.
         let boxed = if let Some(boxed) = type_map.get(&TypeId::of::<T>()) {
