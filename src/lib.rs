@@ -216,11 +216,22 @@ impl<T: Eq + Hash + Send + Sync + 'static> Intern<T> {
 }
 
 #[cfg(feature = "tinyset")]
+#[cold]
+fn allocate_ptr() -> *mut usize {
+    let aref: &usize = Box::leak(Box::new(0));
+    aref as *const usize as *mut usize
+}
+
+#[cfg(feature = "tinyset")]
 fn heap_location() -> u64 {
-    use once_cell::sync::OnceCell;
-    static HEAP_LOCATION: OnceCell<Box<usize>> = OnceCell::new();
-    let p: *const usize = HEAP_LOCATION.get_or_init(|| Box::new(0)).borrow();
-    p as u64
+    static HEAP_LOCATION: std::sync::atomic::AtomicPtr<usize> = std::sync::atomic::AtomicPtr::new(0 as *mut usize);
+    let mut p = HEAP_LOCATION.load(std::sync::atomic::Ordering::Relaxed) as u64;
+    if p == 0 {
+        let ptr = allocate_ptr();
+        HEAP_LOCATION.store(ptr, std::sync::atomic::Ordering::Relaxed);
+        p = ptr as u64;
+    }
+    p
 }
 #[cfg(feature = "tinyset")]
 fn sz<T>() -> u64 {
