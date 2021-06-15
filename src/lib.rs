@@ -52,11 +52,11 @@ mod boxedset;
 use boxedset::HashSet;
 #[cfg(feature = "arc")]
 use dashmap::{mapref::entry::Entry, DashMap};
+use parking_lot::Mutex;
 use std::cell::RefCell;
 use std::sync::atomic::AtomicUsize;
 #[cfg(feature = "arc")]
 use std::sync::atomic::Ordering;
-use parking_lot::Mutex;
 
 mod container;
 use container::{TypeHolder, TypeHolderSend};
@@ -138,6 +138,40 @@ pub struct Intern<T: 'static> {
     pointer: &'static T,
 }
 
+#[test]
+fn has_niche() {
+    assert_eq!(
+        std::mem::size_of::<Intern<String>>(),
+        std::mem::size_of::<usize>(),
+    );
+    assert_eq!(
+        std::mem::size_of::<Option<Intern<String>>>(),
+        std::mem::size_of::<usize>(),
+    );
+
+    assert_eq!(
+        std::mem::size_of::<LocalIntern<String>>(),
+        std::mem::size_of::<usize>(),
+    );
+    assert_eq!(
+        std::mem::size_of::<Option<LocalIntern<String>>>(),
+        std::mem::size_of::<usize>(),
+    );
+}
+
+#[cfg(feature = "arc")]
+#[test]
+fn arc_has_niche() {
+    assert_eq!(
+        std::mem::size_of::<ArcIntern<String>>(),
+        std::mem::size_of::<usize>(),
+    );
+    assert_eq!(
+        std::mem::size_of::<Option<ArcIntern<String>>>(),
+        std::mem::size_of::<usize>(),
+    );
+}
+
 impl<T> Clone for Intern<T> {
     fn clone(&self) -> Self {
         Intern {
@@ -161,7 +195,8 @@ where
     F: FnOnce(&mut T) -> R,
     T: Any + Send + Default,
 {
-    static INTERN_CONTAINERS: Mutex<TypeHolderSend> = parking_lot::const_mutex(TypeHolderSend::new());
+    static INTERN_CONTAINERS: Mutex<TypeHolderSend> =
+        parking_lot::const_mutex(TypeHolderSend::new());
     f(INTERN_CONTAINERS.lock().get_type_mut())
 }
 
@@ -209,9 +244,7 @@ impl<T: Eq + Hash + Send + Sync + 'static> Intern<T> {
     /// See how many objects have been interned.  This may be helpful
     /// in analyzing memory use.
     pub fn num_objects_interned() -> usize {
-        with_global(|m: &mut HashSet<&'static T>| -> usize {
-            m.len()
-        })
+        with_global(|m: &mut HashSet<&'static T>| -> usize { m.len() })
     }
 }
 
@@ -224,7 +257,8 @@ fn allocate_ptr() -> *mut usize {
 
 #[cfg(feature = "tinyset")]
 fn heap_location() -> u64 {
-    static HEAP_LOCATION: std::sync::atomic::AtomicPtr<usize> = std::sync::atomic::AtomicPtr::new(0 as *mut usize);
+    static HEAP_LOCATION: std::sync::atomic::AtomicPtr<usize> =
+        std::sync::atomic::AtomicPtr::new(0 as *mut usize);
     let mut p = HEAP_LOCATION.load(std::sync::atomic::Ordering::Relaxed) as u64;
     if p == 0 {
         let ptr = allocate_ptr();
@@ -330,7 +364,7 @@ fn test_intern_set64() {
 /// ```
 #[cfg(feature = "arc")]
 pub struct ArcIntern<T: Eq + Hash + Send + Sync + 'static> {
-    pointer: *const RefCount<T>,
+    pointer: std::ptr::NonNull<RefCount<T>>,
 }
 
 #[cfg(feature = "arc")]
@@ -390,7 +424,7 @@ type Untyped = Box<(dyn Any + Send + Sync + 'static)>;
 #[cfg(feature = "arc")]
 impl<T: Eq + Hash + Send + Sync + 'static> ArcIntern<T> {
     fn get_pointer(&self) -> *const RefCount<T> {
-        self.pointer
+        self.pointer.as_ptr()
     }
     fn get_container() -> dashmap::mapref::one::Ref<'static, TypeId, Untyped, RandomState> {
         use once_cell::sync::OnceCell;
@@ -426,7 +460,7 @@ impl<T: Eq + Hash + Send + Sync + 'static> ArcIntern<T> {
                 if oldval != 0 {
                     // we can only use this value if the value is not about to be freed
                     return ArcIntern {
-                        pointer: b.0.borrow(),
+                        pointer: std::ptr::NonNull::from(b.0.borrow()),
                     };
                 } else {
                     // we have encountered a race condition here.
@@ -443,7 +477,7 @@ impl<T: Eq + Hash + Send + Sync + 'static> ArcIntern<T> {
                     Entry::Vacant(e) => {
                         // We can insert, all is good
                         let p = ArcIntern {
-                            pointer: e.key().0.borrow(),
+                            pointer: std::ptr::NonNull::from(e.key().0.borrow()),
                         };
                         e.insert(());
                         return p;
@@ -483,7 +517,7 @@ impl<T: Eq + Hash + Send + Sync + 'static> ArcIntern<T> {
     }
     /// Return the number of counts for this pointer.
     pub fn refcount(&self) -> usize {
-        unsafe { (*self.pointer).count.load(Ordering::Acquire) }
+        unsafe { self.pointer.as_ref().count.load(Ordering::Acquire) }
     }
 }
 
@@ -495,7 +529,7 @@ impl<T: Eq + Hash + Send + Sync + 'static> Clone for ArcIntern<T> {
         // prevents other threads from erroneously deleting the
         // object.  (See `std::sync::Arc` documentation for more
         // explanation.)
-        unsafe { (*self.pointer).count.fetch_add(1, Ordering::Relaxed) };
+        unsafe { self.pointer.as_ref().count.fetch_add(1, Ordering::Relaxed) };
         ArcIntern {
             pointer: self.pointer,
         }
@@ -518,7 +552,7 @@ impl<T: Eq + Hash + Send + Sync> Drop for ArcIntern<T> {
         // already atomic, we do not need to synchronize with other
         // threads unless we are going to delete the object. This same
         // logic applies to the below `fetch_sub` to the `weak` count.
-        let count_was = unsafe { (*self.pointer).count.fetch_sub(1, Ordering::SeqCst) };
+        let count_was = unsafe { self.pointer.as_ref().count.fetch_sub(1, Ordering::SeqCst) };
         if count_was == 1 {
             // The following causes the code only when testing, to yield
             // control before taking the mutex, which should make it
@@ -541,7 +575,7 @@ impl<T: Eq + Hash + Send + Sync> Drop for ArcIntern<T> {
             let _remove;
             let c = Self::get_container();
             let m = c.downcast_ref::<Container<T>>().unwrap();
-            _remove = m.remove(unsafe { &*self.pointer });
+            _remove = m.remove(unsafe { self.pointer.as_ref() });
         }
     }
 }
@@ -549,7 +583,7 @@ impl<T: Eq + Hash + Send + Sync> Drop for ArcIntern<T> {
 #[cfg(feature = "arc")]
 impl<T: Send + Sync + Hash + Eq> AsRef<T> for ArcIntern<T> {
     fn as_ref(&self) -> &T {
-        unsafe { &(*self.pointer).data }
+        unsafe { &self.pointer.as_ref().data }
     }
 }
 impl<T> AsRef<T> for Intern<T> {
@@ -559,7 +593,7 @@ impl<T> AsRef<T> for Intern<T> {
 }
 impl<T> AsRef<T> for LocalIntern<T> {
     fn as_ref(&self) -> &T {
-        unsafe { &*self.pointer }
+        unsafe { self.pointer.as_ref() }
     }
 }
 
@@ -874,7 +908,7 @@ fn multithreading_intern() {
 /// assert_eq!(&*x, "hello"); // dereference a LocalIntern like a pointer
 /// ```
 pub struct LocalIntern<T> {
-    pointer: *const T,
+    pointer: std::ptr::NonNull<T>,
 }
 
 impl<T> Clone for LocalIntern<T> {
@@ -904,7 +938,7 @@ impl<T> Copy for LocalIntern<T> {}
 
 impl<T> LocalIntern<T> {
     fn get_pointer(&self) -> *const T {
-        self.pointer
+        self.pointer.as_ptr()
     }
 }
 
@@ -919,11 +953,11 @@ impl<T: Eq + Hash + 'static> LocalIntern<T> {
         with_local(|m: &mut HashSet<Box<T>>| -> LocalIntern<T> {
             if let Some(ref b) = m.get(&val) {
                 return LocalIntern {
-                    pointer: (*b).borrow(),
+                    pointer: std::ptr::NonNull::from((*b).borrow()),
                 };
             }
             let b = Box::new(val);
-            let p: *const T = b.borrow();
+            let p = std::ptr::NonNull::from(b.borrow());
             m.insert(b);
             LocalIntern { pointer: p }
         })
@@ -940,13 +974,13 @@ impl<T: Eq + Hash + 'static> LocalIntern<T> {
         with_local(|m: &mut HashSet<Box<T>>| -> LocalIntern<T> {
             if let Some(ref b) = m.get(val) {
                 return LocalIntern {
-                    pointer: (*b).borrow(),
+                    pointer: std::ptr::NonNull::from((*b).borrow()),
                 };
             }
             let b = Box::new(T::from(val));
-            let p: *const T = b.borrow();
+            let pointer = std::ptr::NonNull::from(b.borrow());
             m.insert(b);
-            LocalIntern { pointer: p }
+            LocalIntern { pointer }
         })
     }
     /// See how many objects have been interned.  This may be helpful
