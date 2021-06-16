@@ -298,11 +298,11 @@ impl<T: Debug> Fits64 for Intern<T> {
 impl<T: Debug> Fits64 for LocalIntern<T> {
     unsafe fn from_u64(x: u64) -> Self {
         LocalIntern {
-            pointer: ((x ^ heap_location() / sz::<T>()) * sz::<T>()) as *const T,
+            pointer: std::ptr::NonNull::new_unchecked(((x ^ heap_location() / sz::<T>()) * sz::<T>()) as *mut T),
         }
     }
     fn to_u64(self) -> u64 {
-        self.pointer as u64 / sz::<T>() ^ heap_location() / sz::<T>()
+        self.pointer.as_ptr() as u64 / sz::<T>() ^ heap_location() / sz::<T>()
     }
 }
 #[test]
