@@ -262,8 +262,20 @@ fn heap_location() -> u64 {
     let mut p = HEAP_LOCATION.load(std::sync::atomic::Ordering::Relaxed) as u64;
     if p == 0 {
         let ptr = allocate_ptr();
-        HEAP_LOCATION.store(ptr, std::sync::atomic::Ordering::Relaxed);
-        p = ptr as u64;
+        p = match HEAP_LOCATION.compare_exchange(
+            std::ptr::null_mut(),
+            ptr,
+            std::sync::atomic::Ordering::Relaxed,
+            std::sync::atomic::Ordering::Relaxed,
+        ) {
+            Ok(_) => {
+                ptr as u64
+            },
+            Err(ptr) => {
+                println!("race, ptr is {:p}", ptr);
+                ptr as u64
+            }
+        }
     }
     p
 }
@@ -298,7 +310,9 @@ impl<T: Debug> Fits64 for Intern<T> {
 impl<T: Debug> Fits64 for LocalIntern<T> {
     unsafe fn from_u64(x: u64) -> Self {
         LocalIntern {
-            pointer: std::ptr::NonNull::new_unchecked(((x ^ heap_location() / sz::<T>()) * sz::<T>()) as *mut T),
+            pointer: std::ptr::NonNull::new_unchecked(
+                ((x ^ heap_location() / sz::<T>()) * sz::<T>()) as *mut T,
+            ),
         }
     }
     fn to_u64(self) -> u64 {
