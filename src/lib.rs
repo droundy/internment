@@ -280,15 +280,16 @@ fn heap_location() -> u64 {
     p
 }
 #[cfg(feature = "tinyset")]
-fn sz<T>() -> u64 {
+const fn sz<T>() -> u64 {
     std::mem::align_of::<T>() as u64
 }
-/// The `Fits64` implementation for `Intern<T>` is designed to
-/// normally give (relatively) small numbers, by XORing with a fixed
-/// pointer that is also on the heap.  This should make the most
-/// significant bits of the resulting u64 be zero, which will mean
-/// that `Set64` (which is space-efficient in storing small integers)
-/// can store this result in fewer than 8 bytes.
+/// The `Fits64` implementation for `Intern<T>` is designed to normally give
+/// (relatively) small numbers, by XORing with a fixed pointer that is also on
+/// the heap.  The pointer is also divided by its alignment to eliminate those
+/// redundant insignificant zeros.  This should make the most significant bits
+/// of the resulting u64 be zero, which will mean that `Set64` (which is
+/// space-efficient in storing small integers) can store this result in far
+/// fewer than 8 bytes.
 #[cfg(feature = "tinyset")]
 impl<T: Debug> Fits64 for Intern<T> {
     unsafe fn from_u64(x: u64) -> Self {
