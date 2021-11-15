@@ -61,9 +61,8 @@ use std::sync::atomic::Ordering;
 mod container;
 use container::{TypeHolder, TypeHolderSend};
 
-use std::any::Any;
-#[cfg(feature = "arc")]
 use std::any::TypeId;
+use std::any::{type_name, Any};
 use std::borrow::Borrow;
 use std::convert::AsRef;
 use std::fmt::{Debug, Display, Pointer};
@@ -195,9 +194,82 @@ where
     F: FnOnce(&mut T) -> R,
     T: Any + Send + Default,
 {
-    static INTERN_CONTAINERS: Mutex<TypeHolderSend> =
-        parking_lot::const_mutex(TypeHolderSend::new());
-    f(INTERN_CONTAINERS.lock().get_type_mut())
+    // Compute the hash of the type.
+    fn hash_of_type<T: 'static>() -> u64 {
+        // We use very simple hasher, because it is optimized away to a constant:
+        // https://rust.godbolt.org/z/4T1fa4GGs
+        // which is not true for using `DefaultHasher`:
+        // https://rust.godbolt.org/z/qKar1WKfz
+        struct HasherForTypeId {
+            hash: u64,
+        }
+
+        impl Hasher for HasherForTypeId {
+            fn write(&mut self, bytes: &[u8]) {
+                // Hash for type only calls `write_u64` once,
+                // but handle this case explicitly to make sure
+                // this code doesn't break if stdlib internals change.
+
+                for byte in bytes {
+                    self.hash = self.hash.wrapping_mul(31).wrapping_add(*byte as u64);
+                }
+            }
+
+            fn write_u64(&mut self, v: u64) {
+                self.hash = v;
+            }
+
+            fn finish(&self) -> u64 {
+                self.hash
+            }
+        }
+
+        let mut hasher = HasherForTypeId { hash: 0 };
+        TypeId::of::<T>().hash(&mut hasher);
+        hasher.hash
+    }
+
+    const INTERN_CONTAINER_COUNT: usize = 32;
+    static INTERN_CONTAINERS: [Mutex<TypeHolderSend>; INTERN_CONTAINER_COUNT] = [
+        // There's no way to create a static array without copy-paste.
+        parking_lot::const_mutex(TypeHolderSend::new()),
+        parking_lot::const_mutex(TypeHolderSend::new()),
+        parking_lot::const_mutex(TypeHolderSend::new()),
+        parking_lot::const_mutex(TypeHolderSend::new()),
+        parking_lot::const_mutex(TypeHolderSend::new()),
+        parking_lot::const_mutex(TypeHolderSend::new()),
+        parking_lot::const_mutex(TypeHolderSend::new()),
+        parking_lot::const_mutex(TypeHolderSend::new()),
+        parking_lot::const_mutex(TypeHolderSend::new()),
+        parking_lot::const_mutex(TypeHolderSend::new()),
+        parking_lot::const_mutex(TypeHolderSend::new()),
+        parking_lot::const_mutex(TypeHolderSend::new()),
+        parking_lot::const_mutex(TypeHolderSend::new()),
+        parking_lot::const_mutex(TypeHolderSend::new()),
+        parking_lot::const_mutex(TypeHolderSend::new()),
+        parking_lot::const_mutex(TypeHolderSend::new()),
+        parking_lot::const_mutex(TypeHolderSend::new()),
+        parking_lot::const_mutex(TypeHolderSend::new()),
+        parking_lot::const_mutex(TypeHolderSend::new()),
+        parking_lot::const_mutex(TypeHolderSend::new()),
+        parking_lot::const_mutex(TypeHolderSend::new()),
+        parking_lot::const_mutex(TypeHolderSend::new()),
+        parking_lot::const_mutex(TypeHolderSend::new()),
+        parking_lot::const_mutex(TypeHolderSend::new()),
+        parking_lot::const_mutex(TypeHolderSend::new()),
+        parking_lot::const_mutex(TypeHolderSend::new()),
+        parking_lot::const_mutex(TypeHolderSend::new()),
+        parking_lot::const_mutex(TypeHolderSend::new()),
+        parking_lot::const_mutex(TypeHolderSend::new()),
+        parking_lot::const_mutex(TypeHolderSend::new()),
+        parking_lot::const_mutex(TypeHolderSend::new()),
+        parking_lot::const_mutex(TypeHolderSend::new()),
+    ];
+    f(
+        INTERN_CONTAINERS[hash_of_type::<T>() as usize % INTERN_CONTAINER_COUNT]
+            .lock()
+            .get_type_mut(),
+    )
 }
 
 impl<T: Eq + Hash + Send + Sync + 'static> Intern<T> {
