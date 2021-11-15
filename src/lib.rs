@@ -48,6 +48,8 @@
 #[cfg(feature = "tinyset")]
 use quickcheck::quickcheck;
 
+use hashbrown::raw::RawTable;
+
 mod boxedset;
 use boxedset::HashSet;
 #[cfg(feature = "arc")]
@@ -65,6 +67,7 @@ use std::any::Any;
 #[cfg(feature = "arc")]
 use std::any::TypeId;
 use std::borrow::Borrow;
+use std::collections::hash_map::DefaultHasher;
 use std::convert::AsRef;
 use std::fmt::{Debug, Display, Pointer};
 use std::hash::{Hash, Hasher};
@@ -200,6 +203,65 @@ where
     f(INTERN_CONTAINERS.lock().get_type_mut())
 }
 
+// Compute the hash before acquiring the lock.
+#[derive(PartialEq)]
+struct Hashed<T> {
+    hash: u64,
+    value: T,
+}
+
+impl<T: Hash> Hashed<T> {
+    fn hash(value: &T) -> u64 {
+        let mut hasher = DefaultHasher::new();
+        value.hash(&mut hasher);
+        hasher.finish()
+    }
+
+    fn new(value: T) -> Self {
+        let hash = Self::hash(&value);
+        Hashed { hash, value }
+    }
+}
+
+struct PerTypeIntern<T: 'static> {
+    table: RawTable<&'static T>,
+}
+
+impl<T: 'static> Default for PerTypeIntern<T> {
+    fn default() -> PerTypeIntern<T> {
+        PerTypeIntern {
+            table: RawTable::new(),
+        }
+    }
+}
+
+impl<T: Eq + Hash + 'static> PerTypeIntern<T> {
+    fn intern(&mut self, hashed: Hashed<T>) -> &'static T {
+        if let Some(b) = self.table.find(hashed.hash, |x| **x == hashed.value) {
+            unsafe { return b.as_ref() };
+        }
+        let p: &'static T = Box::leak(Box::new(hashed.value));
+        self.table.insert(hashed.hash, p, Hashed::hash);
+        p
+    }
+
+    fn intern_from<'a, Q>(&mut self, hashed: Hashed<&'a Q>) -> &'static T
+    where
+        Q: ?Sized + Eq + Hash + 'a,
+        T: Borrow<Q> + From<&'a Q>,
+    {
+        if let Some(b) = self
+            .table
+            .find(hashed.hash, |x| <T as Borrow<Q>>::borrow(x) == hashed.value)
+        {
+            unsafe { return b.as_ref() };
+        }
+        let p: &'static T = Box::leak(Box::new(T::from(hashed.value)));
+        self.table.insert(hashed.hash, p, Hashed::hash);
+        p
+    }
+}
+
 impl<T: Eq + Hash + Send + Sync + 'static> Intern<T> {
     /// Intern a value.  If this value has not previously been
     /// interned, then `new` will allocate a spot for the value on the
@@ -209,13 +271,11 @@ impl<T: Eq + Hash + Send + Sync + 'static> Intern<T> {
     /// Note that `Intern::new` is a bit slow, since it needs to check
     /// a `HashSet` protected by a `Mutex`.
     pub fn new(val: T) -> Intern<T> {
-        with_global(|m: &mut HashSet<&'static T>| -> Intern<T> {
-            if let Some(&b) = m.get(&val) {
-                return Intern { pointer: b };
+        let hashed = Hashed::new(val);
+        with_global(|m: &mut PerTypeIntern<T>| -> Intern<T> {
+            Intern {
+                pointer: m.intern(hashed),
             }
-            let p: &'static T = Box::leak(Box::new(val));
-            m.insert(p);
-            Intern { pointer: p }
         })
     }
     /// Intern a value from a reference.
@@ -227,13 +287,11 @@ impl<T: Eq + Hash + Send + Sync + 'static> Intern<T> {
     where
         T: Borrow<Q> + From<&'a Q>,
     {
-        with_global(|m: &mut HashSet<&'static T>| -> Intern<T> {
-            if let Some(&b) = m.get(val) {
-                return Intern { pointer: b };
+        let hashed = Hashed::new(val);
+        with_global(|m: &mut PerTypeIntern<T>| -> Intern<T> {
+            Intern {
+                pointer: m.intern_from(hashed),
             }
-            let p = Box::leak(Box::new(T::from(val)));
-            m.insert(p);
-            Intern { pointer: p }
         })
     }
     /// Get a long-lived reference to the data pointed to by an `Intern`, which
@@ -244,7 +302,7 @@ impl<T: Eq + Hash + Send + Sync + 'static> Intern<T> {
     /// See how many objects have been interned.  This may be helpful
     /// in analyzing memory use.
     pub fn num_objects_interned() -> usize {
-        with_global(|m: &mut HashSet<&'static T>| -> usize { m.len() })
+        with_global(|m: &mut PerTypeIntern<T>| -> usize { m.table.len() })
     }
 }
 
@@ -268,9 +326,7 @@ fn heap_location() -> u64 {
             std::sync::atomic::Ordering::Relaxed,
             std::sync::atomic::Ordering::Relaxed,
         ) {
-            Ok(_) => {
-                ptr as u64
-            },
+            Ok(_) => ptr as u64,
             Err(ptr) => {
                 println!("race, ptr is {:p}", ptr);
                 ptr as u64
