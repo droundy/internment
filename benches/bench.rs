@@ -13,6 +13,107 @@ fn main() {
 
 #[cfg(feature = "bench")]
 fn main() {
+    println!(
+        "Contended Intern {}",
+        bench(|| {
+            let mut handles: Vec<std::thread::JoinHandle<()>> = Vec::new();
+            for i in 0..50 {
+                handles.push(std::thread::spawn(move || {
+                    let mut interned_strings = Vec::new();
+                    let mut interned_ints = Vec::new();
+                    let mut interned_pairs = Vec::new();
+                    let mut interned_triples = Vec::new();
+                    for n in 0..100000 {
+                        match (i + n) % 4 {
+                            0 => {
+                                interned_strings.push(Intern::new(format!("i {} and n {}", i, n)));
+                            }
+                            1 => {
+                                interned_ints.push(Intern::new(i * n * 137));
+                            }
+                            2 => {
+                                interned_pairs.push(Intern::new((i, n)));
+                            }
+                            _ => {
+                                interned_triples.push(Intern::new((i, n, i + n)));
+                            }
+                        }
+                    }
+                }));
+            }
+            for h in handles {
+                h.join().unwrap();
+            }
+        })
+    );
+    println!(
+        "Contended ArcIntern {}",
+        bench(|| {
+            let mut handles: Vec<std::thread::JoinHandle<()>> = Vec::new();
+            for i in 0..50 {
+                handles.push(std::thread::spawn(move || {
+                    let mut interned_strings = Vec::new();
+                    let mut interned_ints = Vec::new();
+                    let mut interned_pairs = Vec::new();
+                    let mut interned_triples = Vec::new();
+                    for n in 0..100000 {
+                        match (i + n) % 4 {
+                            0 => {
+                                interned_strings.push(ArcIntern::new(format!("i {} and n {}", i, n)));
+                            }
+                            1 => {
+                                interned_ints.push(ArcIntern::new(i * n * 137));
+                            }
+                            2 => {
+                                interned_pairs.push(ArcIntern::new((i, n)));
+                            }
+                            _ => {
+                                interned_triples.push(ArcIntern::new((i, n, i + n)));
+                            }
+                        }
+                    }
+                }));
+            }
+            for h in handles {
+                h.join().unwrap();
+            }
+        })
+    );
+    println!(
+        "Contended LocalIntern {} (not really contended)",
+        bench(|| {
+            let mut handles: Vec<std::thread::JoinHandle<()>> = Vec::new();
+            for i in 0..50 {
+                handles.push(std::thread::spawn(move || {
+                    let mut interned_strings = Vec::new();
+                    let mut interned_ints = Vec::new();
+                    let mut interned_pairs = Vec::new();
+                    let mut interned_triples = Vec::new();
+                    for n in 0..100000 {
+                        match (i + n) % 4 {
+                            0 => {
+                                interned_strings.push(LocalIntern::new(format!("i {} and n {}", i, n)));
+                            }
+                            1 => {
+                                interned_ints.push(LocalIntern::new(i * n * 137));
+                            }
+                            2 => {
+                                interned_pairs.push(LocalIntern::new((i, n)));
+                            }
+                            _ => {
+                                interned_triples.push(LocalIntern::new((i, n, i + n)));
+                            }
+                        }
+                    }
+                }));
+            }
+            for h in handles {
+                h.join().unwrap();
+            }
+        })
+    );
+    println!("\n");
+
     Intern::new(0i64);
     LocalIntern::new(0i64);
     ArcIntern::new(0i64);
@@ -79,7 +180,9 @@ fn main() {
             "Box<String> any eq {}",
             bench_gen_env(
                 || s1.iter().map(|s| Box::new(s.clone())).collect::<Vec<_>>(),
-                |v| v.iter().any(|s| s.as_str() == "hello this is a pretty long string")
+                |v| v
+                    .iter()
+                    .any(|s| s.as_str() == "hello this is a pretty long string")
             )
         );
     }
@@ -149,7 +252,9 @@ fn main() {
             "Intern<String> any eq str {}",
             bench_gen_env(
                 || s1.iter().cloned().collect::<Vec<_>>(),
-                |v| v.iter().any(|s| s.as_str() == "hello this is a pretty long string")
+                |v| v
+                    .iter()
+                    .any(|s| s.as_str() == "hello this is a pretty long string")
             )
         );
         let value = Intern::new("hello this is a pretty long string".to_string());
