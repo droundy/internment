@@ -49,4 +49,8 @@ impl<P: Deref + Eq + Hash> HashSet<P> {
     pub fn len(&self) -> usize {
         self.0.len()
     }
+    #[cfg(feature = "bench")]
+    pub fn clear(&mut self) {
+        self.0.clear()
+    }
 }

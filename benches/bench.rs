@@ -12,106 +12,184 @@ fn main() {
 }
 
 #[cfg(feature = "bench")]
+macro_rules! four_types {
+    ($intern:ident, $i:expr) => {
+        $intern::<String>::benchmarking_only_clear_interns();
+        $intern::<usize>::benchmarking_only_clear_interns();
+        $intern::<(usize, usize)>::benchmarking_only_clear_interns();
+        $intern::<(usize, usize, usize)>::benchmarking_only_clear_interns();
+    
+        let mut interned_strings = Vec::new();
+        let mut interned_ints = Vec::new();
+        let mut interned_pairs = Vec::new();
+        let mut interned_triples = Vec::new();
+        for n in 0..100000 {
+            match ($i + n) % 4 {
+                0 => {
+                    interned_strings.push($intern::new(format!("i {} and n {}", $i, n)));
+                }
+                1 => {
+                    interned_ints.push($intern::new($i * n * 137));
+                }
+                2 => {
+                    interned_pairs.push($intern::new(($i, n)));
+                }
+                _ => {
+                    interned_triples.push($intern::new(($i, n, $i + n)));
+                }
+            }
+        }
+    };
+}
+
+#[cfg(feature = "bench")]
+macro_rules! same_arrays {
+    ($intern:ident, $i:expr) => {
+        $intern::<[usize; 1000]>::benchmarking_only_clear_interns();
+        $intern::<[usize; 20]>::benchmarking_only_clear_interns();
+        $intern::<[usize; 30]>::benchmarking_only_clear_interns();
+        $intern::<[usize; 40]>::benchmarking_only_clear_interns();
+        $intern::<[usize; 50]>::benchmarking_only_clear_interns();
+        $intern::<[usize; 60]>::benchmarking_only_clear_interns();
+        $intern::<[usize; 70]>::benchmarking_only_clear_interns();
+        $intern::<[usize; 80]>::benchmarking_only_clear_interns();
+        $intern::<[usize; 90]>::benchmarking_only_clear_interns();
+        $intern::<[usize; 100]>::benchmarking_only_clear_interns();
+    
+        let mut size = $i;
+        for _ in 0..100000 {
+            size = (size * 75 + 74) % ((1 << 16) + 1);
+            match size % 10 {
+                0 => {
+                    $intern::new([0; 1000]);
+                }
+                1 => {
+                    $intern::new([0; 20]);
+                }
+                2 => {
+                    $intern::new([0; 30]);
+                }
+                3 => {
+                    $intern::new([0; 40]);
+                }
+                4 => {
+                    $intern::new([0; 50]);
+                }
+                5 => {
+                    $intern::new([0; 60]);
+                }
+                6 => {
+                    $intern::new([0; 70]);
+                }
+                7 => {
+                    $intern::new([0; 80]);
+                }
+                8 => {
+                    $intern::new([0; 90]);
+                }
+                _ => {
+                    $intern::new([0; 100]);
+                }
+            }
+        }
+    };
+}
+
+#[cfg(feature = "bench")]
+macro_rules! different_arrays {
+    ($intern:ident, $i:expr) => {
+        $intern::<[usize; 1000]>::benchmarking_only_clear_interns();
+        $intern::<[usize; 20]>::benchmarking_only_clear_interns();
+        $intern::<[usize; 30]>::benchmarking_only_clear_interns();
+        $intern::<[usize; 40]>::benchmarking_only_clear_interns();
+        $intern::<[usize; 50]>::benchmarking_only_clear_interns();
+        $intern::<[usize; 60]>::benchmarking_only_clear_interns();
+        $intern::<[usize; 70]>::benchmarking_only_clear_interns();
+        $intern::<[usize; 80]>::benchmarking_only_clear_interns();
+        $intern::<[usize; 90]>::benchmarking_only_clear_interns();
+        $intern::<[usize; 100]>::benchmarking_only_clear_interns();
+    
+        let mut size = $i;
+        for _ in 0..100000 {
+            size = (size * 75 + 74) % ((1 << 16) + 1);
+            match size % 10 {
+                0 => {
+                    $intern::new([size+$i; 1000]);
+                }
+                1 => {
+                    $intern::new([size+$i; 20]);
+                }
+                2 => {
+                    $intern::new([size+$i; 30]);
+                }
+                3 => {
+                    $intern::new([size+$i; 40]);
+                }
+                4 => {
+                    $intern::new([size+$i; 50]);
+                }
+                5 => {
+                    $intern::new([size+$i; 60]);
+                }
+                6 => {
+                    $intern::new([size+$i; 70]);
+                }
+                7 => {
+                    $intern::new([size+$i; 80]);
+                }
+                8 => {
+                    $intern::new([size+$i; 90]);
+                }
+                _ => {
+                    $intern::new([size+$i; 100]);
+                }
+            }
+        }
+    };
+}
+
+#[cfg(feature = "bench")]
+macro_rules! contended {
+    ($intern:ident,$mac:ident) => {
+        bench(|| {
+            let mut handles: Vec<std::thread::JoinHandle<()>> = Vec::new();
+            for i in 0..50 {
+                handles.push(std::thread::spawn(move || { $mac!($intern, i); }));
+            }
+            for h in handles {
+                h.join().unwrap();
+            }
+        })
+    };
+}
+
+#[cfg(feature = "bench")]
+macro_rules! uncontended {
+    ($intern:ident,$mac:ident) => {
+        bench(|| {
+            for i in 0..50 {
+                $mac!($intern, i);
+            }
+        })
+    };
+}
+
+
+#[cfg(feature = "bench")]
 fn main() {
-    println!(
-        "Contended Intern {}",
-        bench(|| {
-            let mut handles: Vec<std::thread::JoinHandle<()>> = Vec::new();
-            for i in 0..50 {
-                handles.push(std::thread::spawn(move || {
-                    let mut interned_strings = Vec::new();
-                    let mut interned_ints = Vec::new();
-                    let mut interned_pairs = Vec::new();
-                    let mut interned_triples = Vec::new();
-                    for n in 0..100000 {
-                        match (i + n) % 4 {
-                            0 => {
-                                interned_strings.push(Intern::new(format!("i {} and n {}", i, n)));
-                            }
-                            1 => {
-                                interned_ints.push(Intern::new(i * n * 137));
-                            }
-                            2 => {
-                                interned_pairs.push(Intern::new((i, n)));
-                            }
-                            _ => {
-                                interned_triples.push(Intern::new((i, n, i + n)));
-                            }
-                        }
-                    }
-                }));
-            }
-            for h in handles {
-                h.join().unwrap();
-            }
-        })
-    );
-    println!(
-        "Contended ArcIntern {}",
-        bench(|| {
-            let mut handles: Vec<std::thread::JoinHandle<()>> = Vec::new();
-            for i in 0..50 {
-                handles.push(std::thread::spawn(move || {
-                    let mut interned_strings = Vec::new();
-                    let mut interned_ints = Vec::new();
-                    let mut interned_pairs = Vec::new();
-                    let mut interned_triples = Vec::new();
-                    for n in 0..100000 {
-                        match (i + n) % 4 {
-                            0 => {
-                                interned_strings.push(ArcIntern::new(format!("i {} and n {}", i, n)));
-                            }
-                            1 => {
-                                interned_ints.push(ArcIntern::new(i * n * 137));
-                            }
-                            2 => {
-                                interned_pairs.push(ArcIntern::new((i, n)));
-                            }
-                            _ => {
-                                interned_triples.push(ArcIntern::new((i, n, i + n)));
-                            }
-                        }
-                    }
-                }));
-            }
-            for h in handles {
-                h.join().unwrap();
-            }
-        })
-    );
-    println!(
-        "Contended LocalIntern {} (not really contended)",
-        bench(|| {
-            let mut handles: Vec<std::thread::JoinHandle<()>> = Vec::new();
-            for i in 0..50 {
-                handles.push(std::thread::spawn(move || {
-                    let mut interned_strings = Vec::new();
-                    let mut interned_ints = Vec::new();
-                    let mut interned_pairs = Vec::new();
-                    let mut interned_triples = Vec::new();
-                    for n in 0..100000 {
-                        match (i + n) % 4 {
-                            0 => {
-                                interned_strings.push(LocalIntern::new(format!("i {} and n {}", i, n)));
-                            }
-                            1 => {
-                                interned_ints.push(LocalIntern::new(i * n * 137));
-                            }
-                            2 => {
-                                interned_pairs.push(LocalIntern::new((i, n)));
-                            }
-                            _ => {
-                                interned_triples.push(LocalIntern::new((i, n, i + n)));
-                            }
-                        }
-                    }
-                }));
-            }
-            for h in handles {
-                h.join().unwrap();
-            }
-        })
-    );
+    println!("Contended Intern {} / {}",      contended!(Intern, four_types), uncontended!(Intern, four_types));
+    println!("Contended ArcIntern {} / {}",   contended!(ArcIntern, four_types), uncontended!(ArcIntern, four_types));
+    println!("Contended LocalIntern {} / {}", contended!(LocalIntern, four_types), uncontended!(LocalIntern, four_types));
+    println!("\n");
+
+    println!("Contended arrays Intern {} / {}",      contended!(Intern, same_arrays), uncontended!(Intern, same_arrays));
+    println!("Contended arrays ArcIntern {} / {}",   contended!(ArcIntern, same_arrays), uncontended!(ArcIntern, same_arrays));
+    println!("Contended arrays LocalIntern {} / {}", contended!(LocalIntern, same_arrays), uncontended!(LocalIntern, same_arrays));
+    println!("\n");
+
+    println!("Contended different arrays Intern {} / {}",      contended!(Intern, different_arrays), uncontended!(Intern, different_arrays));
+    println!("Contended different arrays ArcIntern {} / {}",   contended!(ArcIntern, different_arrays), uncontended!(ArcIntern, different_arrays));
+    println!("Contended different arrays LocalIntern {} / {}", contended!(LocalIntern, different_arrays), uncontended!(LocalIntern, different_arrays));
     println!("\n");
 
     Intern::new(0i64);
