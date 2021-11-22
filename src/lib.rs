@@ -318,6 +318,12 @@ impl<T: Eq + Hash + Send + Sync + 'static> Intern<T> {
     pub fn num_objects_interned() -> usize {
         with_global(|m: &mut HashSet<&'static T>| -> usize { m.len() })
     }
+
+    /// Only for benchmarking, this will cause problems
+    #[cfg(feature = "bench")]
+    pub fn benchmarking_only_clear_interns() {
+        with_global(|m: &mut HashSet<&'static T>| -> () { m.clear() })
+    }
 }
 
 #[cfg(feature = "tinyset")]
@@ -340,9 +346,7 @@ fn heap_location() -> u64 {
             std::sync::atomic::Ordering::Relaxed,
             std::sync::atomic::Ordering::Relaxed,
         ) {
-            Ok(_) => {
-                ptr as u64
-            },
+            Ok(_) => ptr as u64,
             Err(ptr) => {
                 println!("race, ptr is {:p}", ptr);
                 ptr as u64
@@ -606,6 +610,10 @@ impl<T: Eq + Hash + Send + Sync + 'static> ArcIntern<T> {
     pub fn refcount(&self) -> usize {
         unsafe { self.pointer.as_ref().count.load(Ordering::Acquire) }
     }
+
+    /// Only for benchmarking, this will cause problems
+    #[cfg(feature = "bench")]
+    pub fn benchmarking_only_clear_interns() {}
 }
 
 #[cfg(feature = "arc")]
@@ -1075,6 +1083,10 @@ impl<T: Eq + Hash + 'static> LocalIntern<T> {
     pub fn num_objects_interned() -> usize {
         with_local(|m: &mut HashSet<Box<T>>| -> usize { m.len() })
     }
+
+    /// Only for benchmarking, this will cause problems
+    #[cfg(feature = "bench")]
+    pub fn benchmarking_only_clear_interns() {}
 }
 
 #[test]
