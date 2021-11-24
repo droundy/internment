@@ -62,7 +62,7 @@ mod container;
 use container::{TypeHolder, TypeHolderSend};
 
 use std::any::TypeId;
-use std::any::{type_name, Any};
+use std::any::Any;
 use std::borrow::Borrow;
 use std::convert::AsRef;
 use std::fmt::{Debug, Display, Pointer};
