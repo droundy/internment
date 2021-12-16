@@ -61,14 +61,16 @@ use std::sync::atomic::Ordering;
 mod container;
 use container::{TypeHolder, TypeHolderSend};
 
-use std::any::TypeId;
 use std::any::Any;
+use std::any::TypeId;
 use std::borrow::Borrow;
 use std::convert::AsRef;
 use std::fmt::{Debug, Display, Pointer};
 use std::hash::{Hash, Hasher};
 use std::ops::Deref;
 
+#[cfg(feature = "rkyv")]
+use rkyv::{Archive as RkyvArchive, Deserialize as RkyvDeserialize, Serialize as RkyvSerialize};
 #[cfg(feature = "serde")]
 use serde::{Deserialize, Deserializer, Serialize, Serializer};
 #[cfg(feature = "tinyset")]
@@ -775,6 +777,36 @@ macro_rules! create_impls {
 		impl<'de, T: $( $newtraits +)* 'static + Deserialize<'de>> Deserialize<'de> for $Intern<T> {
             fn deserialize<D: Deserializer<'de>>(deserializer: D) -> Result<Self, D::Error> {
                 T::deserialize(deserializer).map(|x: T| Self::new(x))
+            }
+        }
+
+		#[cfg(feature = "rkyv")]
+        impl<T: $( $traits +)* rkyv::Archive> rkyv::Archive for $Intern<T> {
+            type Archived = rkyv::Archived<T>;
+            type Resolver = rkyv::Resolver<T>;
+
+            #[allow(clippy::unit_arg)]
+            #[inline]
+            unsafe fn resolve(&self, pos: usize, resolver: Self::Resolver, out: *mut Self::Archived) {
+                self.as_ref().resolve(pos, resolver, out)
+            }
+        }
+
+		#[cfg(feature = "rkyv")]
+        impl<T: $( $traits +)* RkyvSerialize<S>, S: rkyv::Fallible + ?Sized> RkyvSerialize<S> for $Intern<T>
+        {
+            #[inline]
+            fn serialize(&self, serializer: &mut S) -> Result<Self::Resolver, S::Error> {
+                RkyvSerialize::serialize(self.as_ref(), serializer)
+            }
+        }
+
+		#[cfg(feature = "rkyv")]
+        impl<T: Eq + Hash + Sync + Send + $( $traits +)* rkyv::Archive<Archived = impl RkyvDeserialize<T, D>> + 'static, D: rkyv::Fallible + ?Sized> RkyvDeserialize<$Intern<T>, D> for rkyv::Archived<$Intern<T>>
+        {
+            #[inline]
+            fn deserialize(&self, deserializer: &mut D) -> Result<$Intern<T>, D::Error> {
+                RkyvDeserialize::<T, D>::deserialize(self, deserializer).map($Intern::new)
             }
         }
 
