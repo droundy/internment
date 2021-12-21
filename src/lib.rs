@@ -58,6 +58,7 @@ use boxedset::HashSet;
 use dashmap::{mapref::entry::Entry, DashMap};
 use parking_lot::Mutex;
 use std::cell::RefCell;
+#[cfg(feature = "arc")]
 use std::sync::atomic::AtomicUsize;
 #[cfg(feature = "arc")]
 use std::sync::atomic::Ordering;
@@ -470,23 +471,28 @@ unsafe impl<T: Eq + Hash + Send + Sync> Send for ArcIntern<T> {}
 #[cfg(feature = "arc")]
 unsafe impl<T: Eq + Hash + Send + Sync> Sync for ArcIntern<T> {}
 
+#[cfg(feature = "arc")]
 #[derive(Debug)]
 struct RefCount<T> {
     count: AtomicUsize,
     data: T,
 }
+#[cfg(feature = "arc")]
 impl<T: Eq> Eq for RefCount<T> {}
+#[cfg(feature = "arc")]
 impl<T: PartialEq> PartialEq for RefCount<T> {
     fn eq(&self, other: &Self) -> bool {
         self.data == other.data
     }
 }
+#[cfg(feature = "arc")]
 impl<T: Hash> Hash for RefCount<T> {
     fn hash<H: Hasher>(&self, hasher: &mut H) {
         self.data.hash(hasher)
     }
 }
 
+#[cfg(feature = "arc")]
 #[derive(Eq, PartialEq, Hash)]
 struct BoxRefCount<T>(Box<RefCount<T>>);
 #[cfg(feature = "arc")]
@@ -495,16 +501,19 @@ impl<T> BoxRefCount<T> {
         self.0.data
     }
 }
+#[cfg(feature = "arc")]
 impl<T> Borrow<T> for BoxRefCount<T> {
     fn borrow(&self) -> &T {
         &self.0.data
     }
 }
+#[cfg(feature = "arc")]
 impl<T> Borrow<RefCount<T>> for BoxRefCount<T> {
     fn borrow(&self) -> &RefCount<T> {
         &self.0
     }
 }
+#[cfg(feature = "arc")]
 impl<T> Deref for BoxRefCount<T> {
     type Target = T;
     fn deref(&self) -> &Self::Target {
