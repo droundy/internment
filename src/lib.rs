@@ -138,6 +138,8 @@ fn like_doctest_localintern() {
     assert_eq!(&*x, "hello"); // dereference a Intern like a pointer\
 }
 
+/// A pointer to an interned object that has been leaked and may be used in any
+/// thread without locking.
 pub struct Intern<T: 'static> {
     pointer: &'static T,
 }
