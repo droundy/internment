@@ -48,6 +48,13 @@ rand = "0.7.2"
 # [profile.release]
 # debug = true
 
+# docs.rs-specific configuration
+[package.metadata.docs.rs]
+# document all features
+all-features = true
+# defines the configuration attribute `docsrs`
+rustdoc-args = ["--cfg", "docsrs"]
+
 [[bench]]
 name = "bench"
 harness = false

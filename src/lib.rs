@@ -44,6 +44,10 @@
 //! assert_ne!(x, y);
 //! ```
 
+// Enable the `doc_cfg` feature when the `docsrs` configuration attribute is
+// defined
+#![cfg_attr(docsrs, feature(doc_cfg))]
+
 #[cfg(test)]
 #[cfg(feature = "tinyset")]
 use quickcheck::quickcheck;
@@ -366,6 +370,7 @@ const fn sz<T>() -> u64 {
 /// of the resulting u64 be zero, which will mean that `Set64` (which is
 /// space-efficient in storing small integers) can store this result in far
 /// fewer than 8 bytes.
+#[cfg_attr(docsrs, doc(cfg(feature = "tinyset")))]
 #[cfg(feature = "tinyset")]
 impl<T: Debug> Fits64 for Intern<T> {
     unsafe fn from_u64(x: u64) -> Self {
@@ -383,6 +388,7 @@ impl<T: Debug> Fits64 for Intern<T> {
 /// significant bits of the resulting u64 be zero, which will mean
 /// that `Set64` (which is space-efficient in storing small integers)
 /// can store this result in fewer than 8 bytes.
+#[cfg_attr(docsrs, doc(cfg(feature = "tinyset")))]
 #[cfg(feature = "tinyset")]
 impl<T: Debug> Fits64 for LocalIntern<T> {
     unsafe fn from_u64(x: u64) -> Self {
@@ -453,6 +459,7 @@ fn test_intern_set64() {
 /// assert_eq!(x, ArcIntern::from("hello"));
 /// assert_eq!(&*x, "hello"); // dereference an ArcIntern like a pointer
 /// ```
+#[cfg_attr(docsrs, doc(cfg(feature = "arc")))]
 #[cfg(feature = "arc")]
 pub struct ArcIntern<T: Eq + Hash + Send + Sync + 'static> {
     pointer: std::ptr::NonNull<RefCount<T>>,
@@ -764,6 +771,7 @@ macro_rules! create_impls {
             }
         }
 
+        #[cfg_attr(docsrs, doc(cfg(feature = "serde")))]
 		#[cfg(feature = "serde")]
 		impl<T: $( $traits +)* Serialize> Serialize for $Intern<T> {
             fn serialize<S: Serializer>(&self, serializer: S) -> Result<S::Ok, S::Error> {
@@ -771,6 +779,7 @@ macro_rules! create_impls {
             }
         }
 
+        #[cfg_attr(docsrs, doc(cfg(feature = "serde")))]
 		#[cfg(feature = "serde")]
 		impl<'de, T: $( $newtraits +)* 'static + Deserialize<'de>> Deserialize<'de> for $Intern<T> {
             fn deserialize<D: Deserializer<'de>>(deserializer: D) -> Result<Self, D::Error> {
