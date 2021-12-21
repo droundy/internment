@@ -58,7 +58,10 @@ jobs:
       - uses: actions-rs/cargo@v1
         with:
           command: doc
-          args: --all-features --cfg docsrs
+          args: --all-features
+        env:
+          RUSTFLAGS: --cfg docsrs
+          RUSTDOCFLAGS: --cfg docsrs -Dwarnings
   msrv:
     name: Minimum supported rust version
     runs-on: ubuntu-latest
