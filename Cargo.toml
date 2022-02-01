@@ -29,7 +29,7 @@ ahash = { version = "0.7.6", optional = true }
 dashmap = { version = "4.0.2", optional = true }
 once_cell = { version = "1.4", optional = true }
 tinyset = { version = "0.4.2", optional =  true }
-hashbrown = { version = "0.9" }
+hashbrown = { version = "0.12.0" }
 serde = { version = "1.0", optional = true }
 
 arc-interner = { version = "0.5", optional = true }
