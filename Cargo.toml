@@ -25,7 +25,7 @@ maintenance = { status = "actively-developed" }
 [dependencies]
 
 parking_lot = "0.11.0"
-ahash = { version = "0.3.8", optional = true }
+ahash = { version = "0.7.6", optional = true }
 dashmap = { version = "4.0.2", optional = true }
 once_cell = { version = "1.4", optional = true }
 tinyset = { version = "0.4.2", optional =  true }
