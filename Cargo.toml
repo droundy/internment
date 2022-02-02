@@ -5,7 +5,7 @@ authors = ["David Roundy <roundyd@physics.oregonstate.edu>"]
 edition = "2018"
 
 description = "Easy interning of data"
-license = "MIT/Apache-2.0"
+license = "MIT OR Apache-2.0"
 repository = "https://github.com/droundy/internment"
 
 readme = "README.md"
