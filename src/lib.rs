@@ -11,25 +11,19 @@
 //! either hash or compare for equality (just a pointer comparison).
 //! Data is also automatically de-duplicated.
 //!
-//! You have three options with the internment crate:
+//! You have two options with the internment crate:
 //!
 //! 1. `Intern`, which will never free your data.  This means that an
 //! `Intern` is `Copy`, so you can make as many copies of the pointer
 //! as you may care to at no cost.
 //!
-//! 2. `LocalIntern`, which will only free your data when the calling
-//! thread exits.  This means that a `LocalIntern` is `Copy`, so you can
-//! make as many copies of the pointer as you may care to at no cost.
-//! However, you cannot share a `LocalIntern` with another thread.  On the
-//! plus side, it is faster to create a `LocalIntern` than an `Intern`.
-//!
-//! 3. `ArcIntern`, which reference-counts your data and frees it when
+//! 2. `ArcIntern`, which reference-counts your data and frees it when
 //! there are no more references.  `ArcIntern` will keep memory use
 //! down, but uses an atomic increment/decrement whenever a clone of
 //! your pointer is made, or a pointer is dropped.
 //!
 //! In each case, accessing your data is a single pointer dereference, and
-//! the size of any internment data structure (`Intern`, `LocalIntern`, or
+//! the size of any internment data structure (`Intern` or
 //! `ArcIntern`) is a single pointer.  In each case, you have a guarantee
 //! that a single data value (as defined by `Eq` and `Hash`) will
 //! correspond to a single pointer value.  This means that we can use
@@ -57,14 +51,13 @@ use boxedset::HashSet;
 #[cfg(feature = "arc")]
 use dashmap::{mapref::entry::Entry, DashMap};
 use parking_lot::Mutex;
-use std::cell::RefCell;
 #[cfg(feature = "arc")]
 use std::sync::atomic::AtomicUsize;
 #[cfg(feature = "arc")]
 use std::sync::atomic::Ordering;
 
 mod container;
-use container::{TypeHolder, TypeHolderSend};
+use container::{TypeHolderSend};
 
 use std::any::TypeId;
 use std::any::Any;
@@ -128,15 +121,6 @@ fn like_doctest_arcintern() {
     assert_eq!(y, ArcIntern::from("world"));
     assert_eq!(&*x, "hello"); // dereference a Intern like a pointer\
 }
-#[test]
-fn like_doctest_localintern() {
-    let x = LocalIntern::new("hello".to_string());
-    let y = LocalIntern::<String>::from("world");
-    assert_ne!(x, y);
-    assert_eq!(x, LocalIntern::from("hello"));
-    assert_eq!(y, LocalIntern::from("world"));
-    assert_eq!(&*x, "hello"); // dereference a Intern like a pointer\
-}
 
 /// A pointer to an interned object that has been leaked and may be used in any
 /// thread without locking.
@@ -152,15 +136,6 @@ fn has_niche() {
     );
     assert_eq!(
         std::mem::size_of::<Option<Intern<String>>>(),
-        std::mem::size_of::<usize>(),
-    );
-
-    assert_eq!(
-        std::mem::size_of::<LocalIntern<String>>(),
-        std::mem::size_of::<usize>(),
-    );
-    assert_eq!(
-        std::mem::size_of::<Option<LocalIntern<String>>>(),
         std::mem::size_of::<usize>(),
     );
 }
@@ -384,41 +359,6 @@ impl<T: Debug> Fits64 for Intern<T> {
     fn to_u64(self) -> u64 {
         self.get_pointer() as u64 / sz::<T>() ^ heap_location() / sz::<T>()
     }
-}
-/// The `Fits64` implementation for `LocalIntern<T>` is designed to
-/// normally give (relatively) small numbers, by XORing with a fixed
-/// pointer that is also on the heap.  This should make the most
-/// significant bits of the resulting u64 be zero, which will mean
-/// that `Set64` (which is space-efficient in storing small integers)
-/// can store this result in fewer than 8 bytes.
-#[cfg_attr(docsrs, doc(cfg(feature = "tinyset")))]
-#[cfg(feature = "tinyset")]
-impl<T: Debug> Fits64 for LocalIntern<T> {
-    unsafe fn from_u64(x: u64) -> Self {
-        LocalIntern {
-            pointer: std::ptr::NonNull::new_unchecked(
-                ((x ^ heap_location() / sz::<T>()) * sz::<T>()) as *mut T,
-            ),
-        }
-    }
-    fn to_u64(self) -> u64 {
-        self.pointer.as_ptr() as u64 / sz::<T>() ^ heap_location() / sz::<T>()
-    }
-}
-#[test]
-#[cfg(feature = "tinyset")]
-fn test_localintern_set64() {
-    use tinyset::Set64;
-    let mut s = Set64::<LocalIntern<u32>>::new();
-    s.insert(LocalIntern::new(5));
-    s.insert(LocalIntern::new(6));
-    s.insert(LocalIntern::new(6));
-    s.insert(LocalIntern::new(7));
-    assert!(s.contains(LocalIntern::new(5)));
-    assert!(s.contains(LocalIntern::new(6)));
-    assert!(s.contains(LocalIntern::new(7)));
-    assert!(!s.contains(LocalIntern::new(8)));
-    assert_eq!(s.len(), 3);
 }
 #[test]
 #[cfg(feature = "tinyset")]
@@ -704,11 +644,6 @@ impl<T> AsRef<T> for Intern<T> {
         self.pointer
     }
 }
-impl<T> AsRef<T> for LocalIntern<T> {
-    fn as_ref(&self) -> &T {
-        unsafe { self.pointer.as_ref() }
-    }
-}
 
 macro_rules! create_impls {
     ( $Intern:ident, $testname:ident,
@@ -851,18 +786,10 @@ create_impls!(
     [Eq, Hash, Send, Sync]
 );
 create_impls!(Intern, normal_intern_impl_tests, [], [Eq, Hash, Send, Sync]);
-create_impls!(LocalIntern, localintern_impl_tests, [], [Eq, Hash]);
 
 impl<T: Debug> Debug for Intern<T> {
     fn fmt(&self, f: &mut std::fmt::Formatter) -> Result<(), std::fmt::Error> {
         std::fmt::Debug::fmt(&self.get_pointer(), f)?;
-        f.write_str(" : ")?;
-        self.deref().fmt(f)
-    }
-}
-impl<T: Debug> Debug for LocalIntern<T> {
-    fn fmt(&self, f: &mut std::fmt::Formatter) -> Result<(), std::fmt::Error> {
-        std::fmt::Debug::fmt(&self.pointer, f)?;
         f.write_str(" : ")?;
         self.deref().fmt(f)
     }
@@ -1005,154 +932,5 @@ fn multithreading_normal_intern() {
     }
     for h in thandles.into_iter() {
         h.join().unwrap()
-    }
-}
-/// A pointer to a thread-local interned object.
-///
-/// The interned object will be held in memory as long as the thread
-/// is still running.  Thus you can arrange a crude sort of arena
-/// allocation by running code using `LocalIntern` on a temporary
-/// thread.  Lifetime issues are as simple as when using `Intern`.
-/// `LocalIntern` differs in that it is neigher `Send` nor `Share`, so
-/// it cannot be used in a multithreaded manner.  On the benefit side,
-/// it is faster than `Intern`, and the memory can be freed (by
-/// running in a temporary thread).
-///
-/// # Example
-/// ```rust
-/// use internment::LocalIntern;
-///
-/// let x = LocalIntern::new("hello");
-/// let y = LocalIntern::new("world");
-/// assert_ne!(x, y);
-/// assert_eq!(x, LocalIntern::new("hello"));
-/// assert_eq!(*x, "hello"); // dereference a LocalIntern like a pointer
-/// ```
-///
-/// # Example with owned `String` data
-///
-/// ```rust
-/// use internment::LocalIntern;
-///
-/// let x = LocalIntern::new("hello".to_string());
-/// let y = LocalIntern::<String>::from("world");
-/// assert_ne!(x, y);
-/// assert_eq!(x, LocalIntern::from("hello"));
-/// assert_eq!(&*x, "hello"); // dereference a LocalIntern like a pointer
-/// ```
-pub struct LocalIntern<T> {
-    pointer: std::ptr::NonNull<T>,
-}
-
-impl<T> Clone for LocalIntern<T> {
-    fn clone(&self) -> Self {
-        LocalIntern {
-            pointer: self.pointer,
-        }
-    }
-}
-
-thread_local! {
-    #[allow(unused)]
-    pub static LOCAL_STUFF: RefCell<TypeHolder> = RefCell::new(TypeHolder::new());
-}
-fn with_local<F, T, R>(f: F) -> R
-where
-    F: FnOnce(&mut T) -> R,
-    T: Any + Default,
-{
-    LOCAL_STUFF.with(|v| -> R { f(v.borrow_mut().get_type_mut()) })
-}
-
-/// An `LocalIntern` is `Copy`, which is unusal for a pointer.  This
-/// is safe because we never free the data pointed to by an
-/// `LocalIntern` until the thread itself is destroyed.
-impl<T> Copy for LocalIntern<T> {}
-
-impl<T> LocalIntern<T> {
-    fn get_pointer(&self) -> *const T {
-        self.pointer.as_ptr()
-    }
-}
-
-impl<T: Eq + Hash + 'static> LocalIntern<T> {
-    /// Intern a value in a thread-local way.  If this value has not
-    /// previously been interned, then `new` will allocate a spot for
-    /// the value on the heap.  Otherwise, it will return a pointer to
-    /// the object previously allocated.
-    ///
-    /// Note that `LocalIntern::new` is a bit slow.
-    pub fn new(val: T) -> LocalIntern<T> {
-        with_local(|m: &mut HashSet<Box<T>>| -> LocalIntern<T> {
-            if let Some(ref b) = m.get(&val) {
-                return LocalIntern {
-                    pointer: std::ptr::NonNull::from((*b).borrow()),
-                };
-            }
-            let b = Box::new(val);
-            let p = std::ptr::NonNull::from(b.borrow());
-            m.insert(b);
-            LocalIntern { pointer: p }
-        })
-    }
-    /// Intern a value from a reference in a thread-local way (fastest).
-    ///
-    /// If this value has not previously been
-    /// interned, then `new` will allocate a spot for the value on the
-    /// heap and generate that value using `T::from(val)`.
-    pub fn from<'a, Q: ?Sized + Eq + Hash + 'a>(val: &'a Q) -> LocalIntern<T>
-    where
-        T: Borrow<Q> + From<&'a Q>,
-    {
-        with_local(|m: &mut HashSet<Box<T>>| -> LocalIntern<T> {
-            if let Some(ref b) = m.get(val) {
-                return LocalIntern {
-                    pointer: std::ptr::NonNull::from((*b).borrow()),
-                };
-            }
-            let b = Box::new(T::from(val));
-            let pointer = std::ptr::NonNull::from(b.borrow());
-            m.insert(b);
-            LocalIntern { pointer }
-        })
-    }
-    /// See how many objects have been interned.  This may be helpful
-    /// in analyzing memory use.
-    pub fn num_objects_interned() -> usize {
-        with_local(|m: &mut HashSet<Box<T>>| -> usize { m.len() })
-    }
-
-    /// Only for benchmarking, this will cause problems
-    #[cfg(feature = "bench")]
-    pub fn benchmarking_only_clear_interns() {}
-}
-
-#[test]
-fn test_localintern_num_objects() {
-    assert_eq!(LocalIntern::new(5), LocalIntern::new(5));
-    {
-        let _interned = LocalIntern::new(6);
-        assert_eq!(LocalIntern::<i32>::num_objects_interned(), 2);
-    }
-    {
-        let _interned = LocalIntern::new(6);
-        assert_eq!(LocalIntern::<i32>::num_objects_interned(), 2);
-    }
-    {
-        let _interned = LocalIntern::new(7);
-        assert_eq!(LocalIntern::<i32>::num_objects_interned(), 3);
-    }
-}
-
-#[cfg(test)]
-#[cfg(feature = "tinyset")]
-quickcheck! {
-    fn fits64_localintern(s: String) -> bool {
-        tinyset::set64::test_fits64(LocalIntern::new(s));
-        true
-    }
-    fn fits64_intern(s: String) -> bool {
-        tinyset::set64::test_fits64(Intern::new(s));
-        true
     }
 }
