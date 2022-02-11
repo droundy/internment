@@ -4,7 +4,7 @@ use scaling::{bench, bench_gen_env};
 use std::collections::HashSet;
 
 #[cfg(feature = "bench")]
-use internment::{ArcIntern, Intern, LocalIntern};
+use internment::{ArcIntern, Intern};
 
 #[cfg(not(feature = "bench"))]
 fn main() {
@@ -179,21 +179,17 @@ macro_rules! uncontended {
 fn main() {
     println!("Contended Intern {} / {}",      contended!(Intern, four_types), uncontended!(Intern, four_types));
     println!("Contended ArcIntern {} / {}",   contended!(ArcIntern, four_types), uncontended!(ArcIntern, four_types));
-    println!("Contended LocalIntern {} / {}", contended!(LocalIntern, four_types), uncontended!(LocalIntern, four_types));
     println!("\n");
 
     println!("Contended arrays Intern {} / {}",      contended!(Intern, same_arrays), uncontended!(Intern, same_arrays));
     println!("Contended arrays ArcIntern {} / {}",   contended!(ArcIntern, same_arrays), uncontended!(ArcIntern, same_arrays));
-    println!("Contended arrays LocalIntern {} / {}", contended!(LocalIntern, same_arrays), uncontended!(LocalIntern, same_arrays));
     println!("\n");
 
     println!("Contended different arrays Intern {} / {}",      contended!(Intern, different_arrays), uncontended!(Intern, different_arrays));
     println!("Contended different arrays ArcIntern {} / {}",   contended!(ArcIntern, different_arrays), uncontended!(ArcIntern, different_arrays));
-    println!("Contended different arrays LocalIntern {} / {}", contended!(LocalIntern, different_arrays), uncontended!(LocalIntern, different_arrays));
     println!("\n");
 
     Intern::new(0i64);
-    LocalIntern::new(0i64);
     ArcIntern::new(0i64);
     arc_interner::ArcIntern::new(0i64);
     let s1: HashSet<_> = (1..3000)
@@ -205,7 +201,6 @@ fn main() {
         .collect();
     for x in 0u8..=255 {
         Intern::new(x);
-        LocalIntern::new(x);
         ArcIntern::new(x);
         arc_interner::ArcIntern::new(x);
     }
@@ -346,70 +341,6 @@ fn main() {
     }
     let i = Intern::new(7i64);
     println!("Intern<i64>::clone {}", bench(|| i.clone()));
-    println!();
-
-    println!(
-        "LocalIntern<i64>::new {}",
-        bench_gen_env(|| rand::random::<i64>(), |x| LocalIntern::new(*x))
-    );
-    println!(
-        "LocalIntern<u8>::new {}",
-        bench_gen_env(|| rand::random::<u8>(), |x| LocalIntern::new(*x))
-    );
-    {
-        fn mkset(s: &mut HashSet<String>) -> HashSet<LocalIntern<String>> {
-            let mut n = HashSet::new();
-            for x in s.iter() {
-                n.insert(LocalIntern::new(x.clone()));
-            }
-            n
-        }
-        mkset(&mut s1.clone());
-        println!(
-            "LocalIntern<String>::new short {}",
-            bench_gen_env(|| s_short.clone(), mkset)
-        );
-        println!(
-            "LocalIntern<String>::new {}",
-            bench_gen_env(|| s1.clone(), mkset)
-        );
-        fn mksetfrom(s: &mut HashSet<String>) -> HashSet<LocalIntern<String>> {
-            let mut n = HashSet::new();
-            for x in s.iter() {
-                n.insert(LocalIntern::from(x as &str));
-            }
-            n
-        }
-        println!(
-            "LocalIntern<String>::from {}",
-            bench_gen_env(|| s1.clone(), mksetfrom)
-        );
-        fn rmset(s: &mut (HashSet<LocalIntern<String>>, HashSet<LocalIntern<String>>)) {
-            for x in s.1.iter() {
-                s.0.remove(x);
-            }
-        }
-        let s1: HashSet<_> = s1.iter().cloned().map(|s| LocalIntern::new(s)).collect();
-        let s2: HashSet<_> = s2.iter().cloned().map(|s| LocalIntern::new(s)).collect();
-        println!(
-            "LocalIntern<String>::compare/hash {}",
-            bench_gen_env(|| (s1.clone(), s2.clone()), rmset)
-        );
-        println!(
-            "LocalIntern<String> sort {}",
-            bench_gen_env(|| s1.iter().cloned().collect::<Vec<_>>(), |v| v.sort())
-        );
-        let value = LocalIntern::new("hello this is a pretty long string".to_string());
-        println!(
-            "LocalIntern<String> any eq {}",
-            bench_gen_env(
-                || s1.iter().cloned().collect::<Vec<_>>(),
-                |v| v.iter().any(|s| *s == value)
-            )
-        );
-    }
-    let i = LocalIntern::new(7i64);
-    println!("LocalIntern<i64>::clone {}", bench(|| i.clone()));
     println!();
 
     println!(
