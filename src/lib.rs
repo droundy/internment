@@ -49,18 +49,18 @@ use quickcheck::quickcheck;
 mod boxedset;
 use boxedset::HashSet;
 #[cfg(feature = "arc")]
+use std::any::Any;
+#[cfg(feature = "arc")]
+use std::any::TypeId;
+#[cfg(feature = "arc")]
 use dashmap::{mapref::entry::Entry, DashMap};
-use parking_lot::Mutex;
 #[cfg(feature = "arc")]
 use std::sync::atomic::AtomicUsize;
 #[cfg(feature = "arc")]
 use std::sync::atomic::Ordering;
 
 mod container;
-use container::{TypeHolderSend};
 
-use std::any::TypeId;
-use std::any::Any;
 use std::borrow::Borrow;
 use std::convert::AsRef;
 use std::fmt::{Debug, Display, Pointer};
@@ -171,88 +171,7 @@ impl<T> Intern<T> {
     }
 }
 
-fn with_global<F, T, R>(f: F) -> R
-where
-    F: FnOnce(&mut T) -> R,
-    T: Any + Send + Default,
-{
-    // Compute the hash of the type.
-    fn hash_of_type<T: 'static>() -> u64 {
-        // We use very simple hasher, because it is optimized away to a constant:
-        // https://rust.godbolt.org/z/4T1fa4GGs
-        // which is not true for using `DefaultHasher`:
-        // https://rust.godbolt.org/z/qKar1WKfz
-        struct HasherForTypeId {
-            hash: u64,
-        }
-
-        impl Hasher for HasherForTypeId {
-            fn write(&mut self, bytes: &[u8]) {
-                // Hash for type only calls `write_u64` once,
-                // but handle this case explicitly to make sure
-                // this code doesn't break if stdlib internals change.
-
-                for byte in bytes {
-                    self.hash = self.hash.wrapping_mul(31).wrapping_add(*byte as u64);
-                }
-            }
-
-            fn write_u64(&mut self, v: u64) {
-                self.hash = v;
-            }
-
-            fn finish(&self) -> u64 {
-                self.hash
-            }
-        }
-
-        let mut hasher = HasherForTypeId { hash: 0 };
-        TypeId::of::<T>().hash(&mut hasher);
-        hasher.hash
-    }
-
-    const INTERN_CONTAINER_COUNT: usize = 32;
-    static INTERN_CONTAINERS: [Mutex<TypeHolderSend>; INTERN_CONTAINER_COUNT] = [
-        // There's no way to create a static array without copy-paste.
-        parking_lot::const_mutex(TypeHolderSend::new()),
-        parking_lot::const_mutex(TypeHolderSend::new()),
-        parking_lot::const_mutex(TypeHolderSend::new()),
-        parking_lot::const_mutex(TypeHolderSend::new()),
-        parking_lot::const_mutex(TypeHolderSend::new()),
-        parking_lot::const_mutex(TypeHolderSend::new()),
-        parking_lot::const_mutex(TypeHolderSend::new()),
-        parking_lot::const_mutex(TypeHolderSend::new()),
-        parking_lot::const_mutex(TypeHolderSend::new()),
-        parking_lot::const_mutex(TypeHolderSend::new()),
-        parking_lot::const_mutex(TypeHolderSend::new()),
-        parking_lot::const_mutex(TypeHolderSend::new()),
-        parking_lot::const_mutex(TypeHolderSend::new()),
-        parking_lot::const_mutex(TypeHolderSend::new()),
-        parking_lot::const_mutex(TypeHolderSend::new()),
-        parking_lot::const_mutex(TypeHolderSend::new()),
-        parking_lot::const_mutex(TypeHolderSend::new()),
-        parking_lot::const_mutex(TypeHolderSend::new()),
-        parking_lot::const_mutex(TypeHolderSend::new()),
-        parking_lot::const_mutex(TypeHolderSend::new()),
-        parking_lot::const_mutex(TypeHolderSend::new()),
-        parking_lot::const_mutex(TypeHolderSend::new()),
-        parking_lot::const_mutex(TypeHolderSend::new()),
-        parking_lot::const_mutex(TypeHolderSend::new()),
-        parking_lot::const_mutex(TypeHolderSend::new()),
-        parking_lot::const_mutex(TypeHolderSend::new()),
-        parking_lot::const_mutex(TypeHolderSend::new()),
-        parking_lot::const_mutex(TypeHolderSend::new()),
-        parking_lot::const_mutex(TypeHolderSend::new()),
-        parking_lot::const_mutex(TypeHolderSend::new()),
-        parking_lot::const_mutex(TypeHolderSend::new()),
-        parking_lot::const_mutex(TypeHolderSend::new()),
-    ];
-    f(
-        INTERN_CONTAINERS[hash_of_type::<T>() as usize % INTERN_CONTAINER_COUNT]
-            .lock()
-            .get_type_mut(),
-    )
-}
+static INTERN_CONTAINERS: container::Arena = container::Arena::new();
 
 impl<T: Eq + Hash + Send + Sync + 'static> Intern<T> {
     /// Intern a value.  If this value has not previously been
@@ -263,7 +182,7 @@ impl<T: Eq + Hash + Send + Sync + 'static> Intern<T> {
     /// Note that `Intern::new` is a bit slow, since it needs to check
     /// a `HashSet` protected by a `Mutex`.
     pub fn new(val: T) -> Intern<T> {
-        with_global(|m: &mut HashSet<&'static T>| -> Intern<T> {
+        INTERN_CONTAINERS.with(|m: &mut HashSet<&'static T>| -> Intern<T> {
             if let Some(&b) = m.get(&val) {
                 return Intern { pointer: b };
             }
@@ -281,7 +200,7 @@ impl<T: Eq + Hash + Send + Sync + 'static> Intern<T> {
     where
         T: Borrow<Q> + From<&'a Q>,
     {
-        with_global(|m: &mut HashSet<&'static T>| -> Intern<T> {
+        INTERN_CONTAINERS.with(|m: &mut HashSet<&'static T>| -> Intern<T> {
             if let Some(&b) = m.get(val) {
                 return Intern { pointer: b };
             }
@@ -298,13 +217,13 @@ impl<T: Eq + Hash + Send + Sync + 'static> Intern<T> {
     /// See how many objects have been interned.  This may be helpful
     /// in analyzing memory use.
     pub fn num_objects_interned() -> usize {
-        with_global(|m: &mut HashSet<&'static T>| -> usize { m.len() })
+        INTERN_CONTAINERS.with(|m: &mut HashSet<&'static T>| -> usize { m.len() })
     }
 
     /// Only for benchmarking, this will cause problems
     #[cfg(feature = "bench")]
     pub fn benchmarking_only_clear_interns() {
-        with_global(|m: &mut HashSet<&'static T>| -> () { m.clear() })
+        INTERN_CONTAINERS.with(|m: &mut HashSet<&'static T>| -> () { m.clear() })
     }
 }
 
