@@ -850,7 +850,7 @@ create_impls!(
     [Eq, Hash, Send, Sync],
     [Eq, Hash, Send, Sync]
 );
-create_impls!(Intern, intern_impl_tests, [], [Eq, Hash, Send, Sync]);
+create_impls!(Intern, normal_intern_impl_tests, [], [Eq, Hash, Send, Sync]);
 create_impls!(LocalIntern, localintern_impl_tests, [], [Eq, Hash]);
 
 impl<T: Debug> Debug for Intern<T> {
@@ -982,6 +982,24 @@ fn multithreading_intern() {
             for _i in 0..100_000 {
                 let _interned1 = Intern::new(TestStruct("foo".to_string(), 5));
                 let _interned2 = Intern::new(TestStruct("bar".to_string(), 10));
+            }
+        }));
+    }
+    for h in thandles.into_iter() {
+        h.join().unwrap()
+    }
+}
+// Quickly create a small number of interned objects from
+// multiple threads.  This test is faster to run under miri.
+#[test]
+fn multithreading_normal_intern() {
+    use std::thread;
+    let mut thandles = vec![];
+    for _i in 0..10 {
+        thandles.push(thread::spawn(|| {
+            for _i in 0..100 {
+                let _interned1 = Intern::new(TestStruct("normalfoo".to_string(), 5));
+                let _interned2 = Intern::new(TestStruct("normalbar".to_string(), 10));
             }
         }));
     }
