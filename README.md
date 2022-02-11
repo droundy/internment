@@ -1,30 +1,26 @@
 # Internment &emsp; [![Latest version](https://img.shields.io/crates/v/internment.svg)](https://crates.io/crates/internment) [![Documentation](https://docs.rs/internment/badge.svg)](https://docs.rs/internment) [![Build Status](https://travis-ci.org/droundy/internment.svg?branch=master)](https://travis-ci.org/droundy/internment) [![Windows Build status](https://ci.appveyor.com/api/projects/status/3dps5r08b5a78fyu?svg=true)](https://ci.appveyor.com/project/droundy/internment) [![Coverage Status](https://coveralls.io/repos/github/droundy/internment/badge.svg?branch=master)](https://coveralls.io/github/droundy/internment?branch=master)
 
+[Changelog](CHANGELOG.md)
+
 A very easy to use library for
 [interning](https://en.wikipedia.org/wiki/String_interning)
 strings or other data in rust.  Interned data is very efficient to
 either hash or compare for equality (just a pointer comparison).
 Data is also automatically de-duplicated.
 
-You have three options with the internment crate:
+You have two options with the internment crate:
 
 1. `Intern`, which will never free your data.  This means that an
 `Intern` is `Copy`, so you can make as many copies of the pointer
 as you may care to at no cost.  Its implementation also uses no unsafe code.
 
-2. `LocalIntern`, which will only free your data when the calling
-thread exits.  This means that a `LocalIntern` is also `Copy`, so you can
-make as many copies of the pointer as you may care to at no cost.  `LocalIntern`,
-however, is not `Send`, so you cannot share a `LocalIntern` with another thread.  On the
-plus side, it is slightly faster to create a `LocalIntern` than an `Intern`.
-
-3. `ArcIntern`, which reference-counts your data and frees it when
+2. `ArcIntern`, which reference-counts your data and frees it when
 there are no more references.  `ArcIntern` will keep memory use
 down, but uses an atomic increment/decrement whenever a clone of
 your pointer is made, or a pointer is dropped.  Requires feature `arc`.
 
 In each case, accessing your data is a single pointer dereference, and
-the size of any internment data structure (`Intern`, `LocalIntern`, or
+the size of any internment data structure (`Intern` or
 `ArcIntern`) is a single pointer.  In each case, you have a guarantee
 that a single data value (as defined by `Eq` and `Hash`) will
 correspond to a single pointer value.  This means that we can use
