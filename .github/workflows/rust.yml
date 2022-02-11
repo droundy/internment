@@ -96,3 +96,5 @@ jobs:
           run: rustup component add miri
         - name: miri test normal_intern
           run: cargo miri test normal_intern
+        - name: miri test arcintern
+          run: MIRIFLAGS=-Zmiri-disable-isolation cargo miri test --features arc arcintern
