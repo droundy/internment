@@ -49,11 +49,11 @@ use quickcheck::quickcheck;
 mod boxedset;
 use boxedset::HashSet;
 #[cfg(feature = "arc")]
+use dashmap::{mapref::entry::Entry, DashMap};
+#[cfg(feature = "arc")]
 use std::any::Any;
 #[cfg(feature = "arc")]
 use std::any::TypeId;
-#[cfg(feature = "arc")]
-use dashmap::{mapref::entry::Entry, DashMap};
 #[cfg(feature = "arc")]
 use std::sync::atomic::AtomicUsize;
 #[cfg(feature = "arc")]
@@ -382,6 +382,9 @@ impl<T> Deref for BoxRefCount<T> {
     }
 }
 
+#[cfg(feature = "arena")]
+mod arena;
+
 #[cfg(feature = "arc")]
 use ahash::RandomState;
 #[cfg(feature = "arc")]
@@ -564,42 +567,32 @@ impl<T> AsRef<T> for Intern<T> {
     }
 }
 
-macro_rules! create_impls {
+macro_rules! create_impls_no_new {
     ( $Intern:ident, $testname:ident,
+      [$( $lifetimes:lifetime ),*], 
       [$( $traits:ident ),*], [$( $newtraits:ident ),*] ) => {
 
-        impl<T: $( $traits +)*> Borrow<T> for $Intern<T> {
+        impl<$( $lifetimes,)* T: $( $traits +)*> Borrow<T> for $Intern<$( $lifetimes,)* T> {
             fn borrow(&self) -> &T {
                 self.as_ref()
             }
         }
-        impl<T: $( $traits +)*> Deref for $Intern<T> {
+        impl<$( $lifetimes,)* T: $( $traits +)*> Deref for $Intern<$( $lifetimes,)* T> {
             type Target = T;
             fn deref(&self) -> &T {
                 self.as_ref()
             }
         }
 
-        impl<T: $( $traits +)* Display> Display for $Intern<T> {
+        impl<$( $lifetimes,)* T: $( $traits +)* Display> Display for $Intern<$( $lifetimes,)* T> {
             fn fmt(&self, f: &mut std::fmt::Formatter) -> Result<(), std::fmt::Error> {
                 self.deref().fmt(f)
             }
         }
 
-        impl<T: $( $traits +)*> Pointer for $Intern<T> {
+        impl<$( $lifetimes,)* T: $( $traits +)*> Pointer for $Intern<$( $lifetimes,)* T> {
             fn fmt(&self, f: &mut std::fmt::Formatter) -> Result<(), std::fmt::Error> {
                 Pointer::fmt(&self.get_pointer(), f)
-            }
-        }
-
-        impl<T: $( $newtraits +)* 'static> From<T> for $Intern<T> {
-            fn from(t: T) -> Self {
-                $Intern::new(t)
-            }
-        }
-        impl<T: $( $newtraits +)* Default + 'static> Default for $Intern<T> {
-            fn default() -> $Intern<T> {
-                $Intern::new(Default::default())
             }
         }
 
@@ -608,20 +601,20 @@ macro_rules! create_impls {
         /// be irrelevant, since there is a unique pointer for every
         /// value, but it *is* observable, since you could compare the
         /// hash of the pointer with hash of the data itself.
-        impl<T: $( $traits +)*> Hash for $Intern<T> {
+        impl<$( $lifetimes,)* T: $( $traits +)*> Hash for $Intern<$( $lifetimes,)* T> {
             fn hash<H: Hasher>(&self, state: &mut H) {
                 self.get_pointer().hash(state);
             }
         }
 
-        impl<T: $( $traits +)*> PartialEq for $Intern<T> {
-            fn eq(&self, other: &$Intern<T>) -> bool {
+        impl<$( $lifetimes,)* T: $( $traits +)*> PartialEq for $Intern<$( $lifetimes,)* T> {
+            fn eq(&self, other: &Self) -> bool {
                 self.get_pointer() == other.get_pointer()
             }
         }
-        impl<T: $( $traits +)*> Eq for $Intern<T> {}
+        impl<$( $lifetimes,)* T: $( $traits +)*> Eq for $Intern<$( $lifetimes,)* T> {}
 
-        impl<T: $( $traits +)* PartialOrd> PartialOrd for $Intern<T> {
+        impl<$( $lifetimes,)* T: $( $traits +)* PartialOrd> PartialOrd for $Intern<$( $lifetimes,)* T> {
             fn partial_cmp(&self, other: &Self) -> Option<std::cmp::Ordering> {
                 self.as_ref().partial_cmp(other)
             }
@@ -630,7 +623,7 @@ macro_rules! create_impls {
             fn gt(&self, other: &Self) -> bool { self.as_ref().gt(other) }
             fn ge(&self, other: &Self) -> bool { self.as_ref().ge(other) }
         }
-        impl<T: $( $traits +)* Ord> Ord for $Intern<T> {
+        impl<$( $lifetimes,)* T: $( $traits +)* Ord> Ord for $Intern<$( $lifetimes,)* T> {
             fn cmp(&self, other: &Self) -> std::cmp::Ordering {
                 self.as_ref().cmp(other)
             }
@@ -638,15 +631,32 @@ macro_rules! create_impls {
 
         #[cfg_attr(docsrs, doc(cfg(feature = "serde")))]
 		#[cfg(feature = "serde")]
-		impl<T: $( $traits +)* Serialize> Serialize for $Intern<T> {
+		impl<$( $lifetimes,)* T: $( $traits +)* Serialize> Serialize for $Intern<$( $lifetimes,)* T> {
             fn serialize<S: Serializer>(&self, serializer: S) -> Result<S::Ok, S::Error> {
                 self.as_ref().serialize(serializer)
+            }
+        }
+    }
+}
+macro_rules! create_impls_new {
+    ( $Intern:ident, $testname:ident,
+      [$( $lifetimes:lifetime ),*], 
+      [$( $traits:ident ),*], [$( $newtraits:ident ),*] ) => {
+
+        impl<$( $lifetimes,)* T: $( $newtraits +)* 'static> From<T> for $Intern<$( $lifetimes,)* T> {
+            fn from(t: T) -> Self {
+                $Intern::new(t)
+            }
+        }
+        impl<$( $lifetimes,)* T: $( $newtraits +)* Default + 'static> Default for $Intern<$( $lifetimes,)* T> {
+            fn default() -> Self {
+                $Intern::new(Default::default())
             }
         }
 
         #[cfg_attr(docsrs, doc(cfg(feature = "serde")))]
 		#[cfg(feature = "serde")]
-		impl<'de, T: $( $newtraits +)* 'static + Deserialize<'de>> Deserialize<'de> for $Intern<T> {
+		impl<'de, $( $lifetimes,)* T: $( $newtraits +)* 'static + Deserialize<'de>> Deserialize<'de> for $Intern<$( $lifetimes,)* T> {
             fn deserialize<D: Deserializer<'de>>(deserializer: D) -> Result<Self, D::Error> {
                 T::deserialize(deserializer).map(|x: T| Self::new(x))
             }
@@ -698,13 +708,23 @@ macro_rules! create_impls {
 }
 
 #[cfg(feature = "arc")]
-create_impls!(
+create_impls_new!(
     ArcIntern,
     arcintern_impl_tests,
+    [],
     [Eq, Hash, Send, Sync],
     [Eq, Hash, Send, Sync]
 );
-create_impls!(Intern, normal_intern_impl_tests, [], [Eq, Hash, Send, Sync]);
+#[cfg(feature = "arc")]
+create_impls_no_new!(
+    ArcIntern,
+    arcintern_impl_tests,
+    [],
+    [Eq, Hash, Send, Sync],
+    [Eq, Hash, Send, Sync]
+);
+create_impls_new!(Intern, normal_intern_impl_tests, [], [], [Eq, Hash, Send, Sync]);
+create_impls_no_new!(Intern, normal_intern_impl_tests, [], [], [Eq, Hash, Send, Sync]);
 
 impl<T: Debug> Debug for Intern<T> {
     fn fmt(&self, f: &mut std::fmt::Formatter) -> Result<(), std::fmt::Error> {
@@ -852,4 +872,104 @@ fn multithreading_normal_intern() {
     for h in thandles.into_iter() {
         h.join().unwrap()
     }
+}
+
+#[cfg(feature = "arena")]
+pub struct Arena<T>(arena::Arena<T>);
+#[cfg(feature = "arena")]
+impl<T> Default for Arena<T> {
+    fn default() -> Self {
+        Self::new()
+    }
+}
+
+#[cfg(feature = "arena")]
+impl<T> Arena<T> {
+    pub fn new() -> Self {
+        Arena(arena::Arena::new())
+    }
+}
+#[cfg(feature = "arena")]
+impl<T: Eq + std::hash::Hash> Arena<T> {
+    pub fn intern(&self, val: T) -> ArenaIntern<T> {
+        ArenaIntern(self.0.intern(val))
+    }
+}
+#[cfg(feature = "arena")]
+pub struct ArenaIntern<'a, T>(arena::ArenaIntern<'a, T>);
+#[cfg(feature = "arena")]
+impl<'a, T> AsRef<T> for ArenaIntern<'a, T> {
+    fn as_ref(&self) -> &T {
+        self.0.pointer
+    }
+}
+#[cfg(feature = "arena")]
+impl<'a, T> Clone for ArenaIntern<'a, T> {
+    fn clone(&self) -> Self {
+        ArenaIntern(self.0.clone())
+    }
+}
+#[cfg(feature = "arena")]
+impl<'a, T> Copy for ArenaIntern<'a,T> {}
+
+#[cfg(feature = "arena")]
+impl<'a, T> ArenaIntern<'a, T> {
+    fn get_pointer(&self) -> *const T {
+        self.0.pointer as *const T
+    }
+}
+
+#[cfg(feature = "arena")]
+create_impls_no_new!(ArenaIntern, arenaintern_impl_tests, ['a], [Eq, Hash], [Eq, Hash]);
+
+#[cfg(feature = "arena")]
+impl<'a, T: Debug> Debug for ArenaIntern<'a, T> {
+    fn fmt(&self, f: &mut std::fmt::Formatter) -> Result<(), std::fmt::Error> {
+        std::fmt::Debug::fmt(&self.get_pointer(), f)?;
+        f.write_str(" : ")?;
+        self.as_ref().fmt(f)
+    }
+}
+
+#[cfg(feature = "arena")]
+mod test_arena {
+    use super::*;
+    #[test]
+    fn eq_string() {
+        let arena = Arena::<&'static str>::new();
+        assert_eq!(arena.intern("hello"), arena.intern("hello"));
+        assert_ne!(arena.intern("goodbye"), arena.intern("farewell"));
+    }
+    #[test]
+    fn display() {
+        let arena = Arena::<&'static str>::new();
+        let world = arena.intern("world");
+        println!("Hello {}", world);
+    }
+    #[test]
+    fn debug() {
+        let arena = Arena::<&'static str>::new();
+        let world = arena.intern("world");
+        println!("Hello {:?}", world);
+    }
+    #[test]
+    fn can_clone() {
+        let arena = Arena::<&'static str>::new();
+        assert_eq!( arena.intern("hello").clone(),
+                    arena.intern("hello"));
+    }
+    #[test]
+    fn has_borrow() {
+        let arena = Arena::<Option<String>>::new();
+        let x = arena.intern(None);
+        let b: &Option<String> = x.borrow();
+        assert_eq!( b, arena.intern(None).as_ref());
+    }
+    #[test]
+    fn has_deref() {
+        let arena = Arena::<Option<String>>::new();
+        let x = arena.intern(None);
+        let b: &Option<String> = x.as_ref();
+        assert_eq!( b, arena.intern(None).deref());
+    }   
 }

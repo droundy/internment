@@ -1,5 +1,10 @@
 
 
+* Unknown
+
+    - Add new `Arena` type which can hold interned data that is then freed when
+      the arena is dropped.  FIXME need to edit README
+
 * 0.6.0 - February 11, 2022
 
     - Removed `LocalIntern`, since I concluded that it was unsound.

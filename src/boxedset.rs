@@ -11,11 +11,12 @@ impl<P: Deref + Eq + Hash> Default for HashSet<P> {
         HashSet::new()
     }
 }
-
-impl<P: Deref + Eq + Hash> HashSet<P> {
+impl<P> HashSet<P> {
     pub fn new() -> Self {
         HashSet(HashMap::new())
     }
+}
+impl<P: Deref + Eq + Hash> HashSet<P> {
     pub fn get<'a, Q: ?Sized + Eq + Hash>(&'a self, key: &Q) -> Option<&'a P>
     where
         P::Target: Borrow<Q>,
