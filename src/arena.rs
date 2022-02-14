@@ -1,5 +1,6 @@
 use crate::boxedset::HashSet;
 use parking_lot::Mutex;
+use std::borrow::Borrow;
 
 pub struct Arena<T> {
     data: Mutex<HashSet<Box<T>>>,
@@ -34,6 +35,25 @@ impl<T: Eq + std::hash::Hash> Arena<T> {
             };
         }
         let b = Box::new(val);
+        let p = b.as_ref() as *const T;
+        m.insert(b);
+        ArenaIntern {
+            pointer: unsafe { &*p },
+        }
+    }
+    pub fn intern_ref<'a, 'b, I>(&'a self, val: &'b I) -> ArenaIntern<'a, T>
+    where
+        T: 'a + Borrow<I> + From<&'b I>,
+        I: Eq + std::hash::Hash + ?Sized,
+    {
+        let mut m = self.data.lock();
+        if let Some(b) = m.get(val) {
+            let p = b.as_ref() as *const T;
+            return ArenaIntern {
+                pointer: unsafe { &*p },
+            };
+        }
+        let b: Box<T> = Box::new(val.into());
         let p = b.as_ref() as *const T;
         m.insert(b);
         ArenaIntern {

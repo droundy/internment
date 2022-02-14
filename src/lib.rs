@@ -569,7 +569,7 @@ impl<T> AsRef<T> for Intern<T> {
 
 macro_rules! create_impls_no_new {
     ( $Intern:ident, $testname:ident,
-      [$( $lifetimes:lifetime ),*], 
+      [$( $lifetimes:lifetime ),*],
       [$( $traits:ident ),*], [$( $newtraits:ident ),*] ) => {
 
         impl<$( $lifetimes,)* T: $( $traits +)*> Borrow<T> for $Intern<$( $lifetimes,)* T> {
@@ -640,7 +640,7 @@ macro_rules! create_impls_no_new {
 }
 macro_rules! create_impls_new {
     ( $Intern:ident, $testname:ident,
-      [$( $lifetimes:lifetime ),*], 
+      [$( $lifetimes:lifetime ),*],
       [$( $traits:ident ),*], [$( $newtraits:ident ),*] ) => {
 
         impl<$( $lifetimes,)* T: $( $newtraits +)* 'static> From<T> for $Intern<$( $lifetimes,)* T> {
@@ -723,8 +723,20 @@ create_impls_no_new!(
     [Eq, Hash, Send, Sync],
     [Eq, Hash, Send, Sync]
 );
-create_impls_new!(Intern, normal_intern_impl_tests, [], [], [Eq, Hash, Send, Sync]);
-create_impls_no_new!(Intern, normal_intern_impl_tests, [], [], [Eq, Hash, Send, Sync]);
+create_impls_new!(
+    Intern,
+    normal_intern_impl_tests,
+    [],
+    [],
+    [Eq, Hash, Send, Sync]
+);
+create_impls_no_new!(
+    Intern,
+    normal_intern_impl_tests,
+    [],
+    [],
+    [Eq, Hash, Send, Sync]
+);
 
 impl<T: Debug> Debug for Intern<T> {
     fn fmt(&self, f: &mut std::fmt::Formatter) -> Result<(), std::fmt::Error> {
@@ -894,6 +906,13 @@ impl<T: Eq + std::hash::Hash> Arena<T> {
     pub fn intern(&self, val: T) -> ArenaIntern<T> {
         ArenaIntern(self.0.intern(val))
     }
+    pub fn intern_ref<'a, 'b, I>(&'a self, val: &'b I) -> ArenaIntern<'a, T>
+    where
+        T: 'a + Borrow<I> + From<&'b I>,
+        I: Eq + std::hash::Hash + ?Sized,
+    {
+        ArenaIntern(self.0.intern_ref(val))
+    }
 }
 #[cfg(feature = "arena")]
 pub struct ArenaIntern<'a, T>(arena::ArenaIntern<'a, T>);
@@ -910,7 +929,7 @@ impl<'a, T> Clone for ArenaIntern<'a, T> {
     }
 }
 #[cfg(feature = "arena")]
-impl<'a, T> Copy for ArenaIntern<'a,T> {}
+impl<'a, T> Copy for ArenaIntern<'a, T> {}
 
 #[cfg(feature = "arena")]
 impl<'a, T> ArenaIntern<'a, T> {
@@ -955,21 +974,20 @@ mod test_arena {
     #[test]
     fn can_clone() {
         let arena = Arena::<&'static str>::new();
-        assert_eq!( arena.intern("hello").clone(),
-                    arena.intern("hello"));
+        assert_eq!(arena.intern("hello").clone(), arena.intern("hello"));
     }
     #[test]
     fn has_borrow() {
         let arena = Arena::<Option<String>>::new();
         let x = arena.intern(None);
         let b: &Option<String> = x.borrow();
-        assert_eq!( b, arena.intern(None).as_ref());
+        assert_eq!(b, arena.intern(None).as_ref());
     }
     #[test]
     fn has_deref() {
         let arena = Arena::<Option<String>>::new();
         let x = arena.intern(None);
         let b: &Option<String> = x.as_ref();
-        assert_eq!( b, arena.intern(None).deref());
-    }   
+        assert_eq!(b, arena.intern(None).deref());
+    }
 }
