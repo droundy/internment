@@ -1,6 +1,6 @@
 
 #[cfg(feature = "bench")]
-use internment::{ArcIntern, Intern, LocalIntern};
+use internment::{ArcIntern, Intern};
 
 #[cfg(not(feature = "bench"))]
 fn main() {}
@@ -10,7 +10,6 @@ fn main() {}
 fn main() {
     println!("^^^^^^^^^^^^^^^^^^^^^^");
     Intern::new(0i64);
-    LocalIntern::new(0i64);
     ArcIntern::new(0i64);
     arc_interner::ArcIntern::new(0i64);
     let mut threads = Vec::new();
