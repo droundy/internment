@@ -124,7 +124,7 @@ fn like_doctest_arcintern() {
 
 /// A pointer to an interned object that has been leaked and may be used in any
 /// thread without locking.
-pub struct Intern<T: 'static> {
+pub struct Intern<T: 'static + ?Sized> {
     pointer: &'static T,
 }
 
@@ -165,13 +165,79 @@ impl<T> Clone for Intern<T> {
 /// because we never free the data pointed to by an `Intern`.
 impl<T> Copy for Intern<T> {}
 
-impl<T> Intern<T> {
+impl<T: ?Sized> Intern<T> {
     fn get_pointer(&self) -> *const T {
         self.pointer as *const T
     }
 }
 
 static INTERN_CONTAINERS: container::Arena = container::Arena::new();
+
+macro_rules! from_via_box {
+    ($t:ty) => {
+        impl From<&$t> for Intern<$t> {
+            fn from(val: &$t) -> Self {
+                Self::via_box(val)
+            }
+        }
+    };
+}
+from_via_box!(std::ffi::CStr);
+from_via_box!(str);
+from_via_box!(std::path::Path);
+impl<T: Eq + Hash + Send + Sync + 'static + Copy> From<&[T]> for Intern<[T]> {
+    fn from(val: &[T]) -> Self {
+        Self::via_box(val)
+    }
+}
+
+impl<T: Eq + Hash + Send + Sync + 'static + Copy, const N: usize> From<&[T; N]> for Intern<[T]> {
+    /// Converts a `[T; N]` into a `Intern<[T]>`
+    fn from(val: &[T; N]) -> Self {
+        Self::via_box(val)
+    }
+}
+
+impl<T: Eq + Hash + Send + Sync + 'static + ?Sized> Intern<T> {
+    /// This method to be used internally
+    fn via_box<'a, I>(val: &'a I) -> Self
+    where
+        Box<T>: From<&'a I>,
+        I: Borrow<T> + ?Sized,
+    {
+        INTERN_CONTAINERS.with(|m: &mut HashSet<&'static T>| -> Self {
+            if let Some(&b) = m.get(val.borrow()) {
+                return Intern { pointer: b };
+            }
+            let p: &'static T = Box::leak(Box::from(val));
+            m.insert(p);
+            Intern { pointer: p }
+        })
+    }
+}
+
+impl<T: Eq + Hash + Send + Sync + 'static + ?Sized> From<Box<T>> for Intern<T> {
+    fn from(val: Box<T>) -> Self {
+        INTERN_CONTAINERS.with(|m: &mut HashSet<&'static T>| -> Self {
+            if let Some(&b) = m.get(val.borrow()) {
+                return Intern { pointer: b };
+            }
+            let p: &'static T = Box::leak(Box::from(val));
+            m.insert(p);
+            Intern { pointer: p }
+        })
+    }
+}
+
+#[test]
+fn test_intern_unsized() {
+    let v: Intern<str> = "hello".into();
+    assert_eq!(&*v, "hello");
+    assert_eq!(v, "hello".into());
+    let v: Intern<[u8]> = b"hello".into();
+    assert_eq!(&*v, b"hello");
+    assert_eq!(v, b"hello".into());
+}
 
 impl<T: Eq + Hash + Send + Sync + 'static> Intern<T> {
     /// Intern a value.  If this value has not previously been
@@ -561,7 +627,7 @@ impl<T: Send + Sync + Hash + Eq> AsRef<T> for ArcIntern<T> {
         unsafe { &self.pointer.as_ref().data }
     }
 }
-impl<T> AsRef<T> for Intern<T> {
+impl<T: ?Sized> AsRef<T> for Intern<T> {
     fn as_ref(&self) -> &T {
         self.pointer
     }
@@ -572,25 +638,25 @@ macro_rules! create_impls_no_new {
       [$( $lifetimes:lifetime ),*],
       [$( $traits:ident ),*], [$( $newtraits:ident ),*] ) => {
 
-        impl<$( $lifetimes,)* T: $( $traits +)*> Borrow<T> for $Intern<$( $lifetimes,)* T> {
+        impl<$( $lifetimes,)* T: $( $traits +)* ?Sized> Borrow<T> for $Intern<$( $lifetimes,)* T> {
             fn borrow(&self) -> &T {
                 self.as_ref()
             }
         }
-        impl<$( $lifetimes,)* T: $( $traits +)*> Deref for $Intern<$( $lifetimes,)* T> {
+        impl<$( $lifetimes,)* T: $( $traits +)* ?Sized> Deref for $Intern<$( $lifetimes,)* T> {
             type Target = T;
             fn deref(&self) -> &T {
                 self.as_ref()
             }
         }
 
-        impl<$( $lifetimes,)* T: $( $traits +)* Display> Display for $Intern<$( $lifetimes,)* T> {
+        impl<$( $lifetimes,)* T: $( $traits +)* Display + ?Sized> Display for $Intern<$( $lifetimes,)* T> {
             fn fmt(&self, f: &mut std::fmt::Formatter) -> Result<(), std::fmt::Error> {
                 self.deref().fmt(f)
             }
         }
 
-        impl<$( $lifetimes,)* T: $( $traits +)*> Pointer for $Intern<$( $lifetimes,)* T> {
+        impl<$( $lifetimes,)* T: $( $traits +)* ?Sized> Pointer for $Intern<$( $lifetimes,)* T> {
             fn fmt(&self, f: &mut std::fmt::Formatter) -> Result<(), std::fmt::Error> {
                 Pointer::fmt(&self.get_pointer(), f)
             }
@@ -601,20 +667,20 @@ macro_rules! create_impls_no_new {
         /// be irrelevant, since there is a unique pointer for every
         /// value, but it *is* observable, since you could compare the
         /// hash of the pointer with hash of the data itself.
-        impl<$( $lifetimes,)* T: $( $traits +)*> Hash for $Intern<$( $lifetimes,)* T> {
+        impl<$( $lifetimes,)* T: $( $traits +)* ?Sized> Hash for $Intern<$( $lifetimes,)* T> {
             fn hash<H: Hasher>(&self, state: &mut H) {
                 self.get_pointer().hash(state);
             }
         }
 
-        impl<$( $lifetimes,)* T: $( $traits +)*> PartialEq for $Intern<$( $lifetimes,)* T> {
+        impl<$( $lifetimes,)* T: $( $traits +)* ?Sized> PartialEq for $Intern<$( $lifetimes,)* T> {
             fn eq(&self, other: &Self) -> bool {
                 self.get_pointer() == other.get_pointer()
             }
         }
-        impl<$( $lifetimes,)* T: $( $traits +)*> Eq for $Intern<$( $lifetimes,)* T> {}
+        impl<$( $lifetimes,)* T: $( $traits +)* ?Sized> Eq for $Intern<$( $lifetimes,)* T> {}
 
-        impl<$( $lifetimes,)* T: $( $traits +)* PartialOrd> PartialOrd for $Intern<$( $lifetimes,)* T> {
+        impl<$( $lifetimes,)* T: $( $traits +)* PartialOrd + ?Sized> PartialOrd for $Intern<$( $lifetimes,)* T> {
             fn partial_cmp(&self, other: &Self) -> Option<std::cmp::Ordering> {
                 self.as_ref().partial_cmp(other)
             }
@@ -623,7 +689,7 @@ macro_rules! create_impls_no_new {
             fn gt(&self, other: &Self) -> bool { self.as_ref().gt(other) }
             fn ge(&self, other: &Self) -> bool { self.as_ref().ge(other) }
         }
-        impl<$( $lifetimes,)* T: $( $traits +)* Ord> Ord for $Intern<$( $lifetimes,)* T> {
+        impl<$( $lifetimes,)* T: $( $traits +)* Ord + ?Sized> Ord for $Intern<$( $lifetimes,)* T> {
             fn cmp(&self, other: &Self) -> std::cmp::Ordering {
                 self.as_ref().cmp(other)
             }
@@ -738,7 +804,7 @@ create_impls_no_new!(
     [Eq, Hash, Send, Sync]
 );
 
-impl<T: Debug> Debug for Intern<T> {
+impl<T: Debug + ?Sized> Debug for Intern<T> {
     fn fmt(&self, f: &mut std::fmt::Formatter) -> Result<(), std::fmt::Error> {
         std::fmt::Debug::fmt(&self.get_pointer(), f)?;
         f.write_str(" : ")?;
