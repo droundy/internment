@@ -237,6 +237,10 @@ fn test_intern_unsized() {
     let v: Intern<[u8]> = b"hello".into();
     assert_eq!(&*v, b"hello");
     assert_eq!(v, b"hello".into());
+
+    let v: Intern<[usize]> = (&[0usize,1,2,3]).into();
+    assert_eq!(&*v, &[0,1,2,3]);
+    assert_eq!(v, (&[0usize,1,2,3]).into());
 }
 
 impl<T: Eq + Hash + Send + Sync + 'static> Intern<T> {
