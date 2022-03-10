@@ -642,11 +642,6 @@ macro_rules! create_impls_no_new {
       [$( $lifetimes:lifetime ),*],
       [$( $traits:ident ),*], [$( $newtraits:ident ),*] ) => {
 
-        impl<$( $lifetimes,)* T: $( $traits +)* ?Sized> Borrow<T> for $Intern<$( $lifetimes,)* T> {
-            fn borrow(&self) -> &T {
-                self.as_ref()
-            }
-        }
         impl<$( $lifetimes,)* T: $( $traits +)* ?Sized> Deref for $Intern<$( $lifetimes,)* T> {
             type Target = T;
             fn deref(&self) -> &T {
