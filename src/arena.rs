@@ -85,14 +85,13 @@ impl<'a, T> ArenaIntern<'a, T> {
 // #[cfg(feature = "arena")]
 // create_impls_no_new!(ArenaIntern, arenaintern_impl_tests, ['a], [Eq, Hash], [Eq, Hash]);
 
-// #[cfg(feature = "arena")]
-// impl<'a, T: Debug> Debug for ArenaIntern<'a, T> {
-//     fn fmt(&self, f: &mut std::fmt::Formatter) -> Result<(), std::fmt::Error> {
-//         std::fmt::Debug::fmt(&self.get_pointer(), f)?;
-//         f.write_str(" : ")?;
-//         self.as_ref().fmt(f)
-//     }
-// }
+impl<'a, T: std::fmt::Debug> std::fmt::Debug for ArenaIntern<'a, T> {
+    fn fmt(&self, f: &mut std::fmt::Formatter) -> Result<(), std::fmt::Error> {
+        std::fmt::Debug::fmt(&self.get_pointer(), f)?;
+        f.write_str(" : ")?;
+        self.as_ref().fmt(f)
+    }
+}
 
 // #[cfg(feature = "arena")]
 // mod test_arena {
