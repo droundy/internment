@@ -48,24 +48,13 @@ use quickcheck::quickcheck;
 
 mod boxedset;
 use boxedset::HashSet;
-#[cfg(feature = "arc")]
-use dashmap::{mapref::entry::Entry, DashMap};
-#[cfg(feature = "arc")]
-use std::any::Any;
-#[cfg(feature = "arc")]
-use std::any::TypeId;
-#[cfg(feature = "arc")]
-use std::sync::atomic::AtomicUsize;
-#[cfg(feature = "arc")]
-use std::sync::atomic::Ordering;
-
-mod container;
-
 use std::borrow::Borrow;
 use std::convert::AsRef;
 use std::fmt::{Debug, Display, Pointer};
 use std::hash::{Hash, Hasher};
 use std::ops::Deref;
+
+mod container;
 
 #[cfg(feature = "serde")]
 use serde::{Deserialize, Deserializer, Serialize, Serializer};
@@ -111,16 +100,6 @@ fn like_doctest_intern() {
     assert_eq!(y, Intern::from("world"));
     assert_eq!(&*x, "hello"); // dereference a Intern like a pointer\
 }
-#[test]
-#[cfg(feature = "arc")]
-fn like_doctest_arcintern() {
-    let x = ArcIntern::new("hello".to_string());
-    let y = ArcIntern::<String>::from("world");
-    assert_ne!(x, y);
-    assert_eq!(x, ArcIntern::from("hello"));
-    assert_eq!(y, ArcIntern::from("world"));
-    assert_eq!(&*x, "hello"); // dereference a Intern like a pointer\
-}
 
 /// A pointer to an interned object that has been leaked and may be used in any
 /// thread without locking.
@@ -136,19 +115,6 @@ fn has_niche() {
     );
     assert_eq!(
         std::mem::size_of::<Option<Intern<String>>>(),
-        std::mem::size_of::<usize>(),
-    );
-}
-
-#[cfg(feature = "arc")]
-#[test]
-fn arc_has_niche() {
-    assert_eq!(
-        std::mem::size_of::<ArcIntern<String>>(),
-        std::mem::size_of::<usize>(),
-    );
-    assert_eq!(
-        std::mem::size_of::<Option<ArcIntern<String>>>(),
         std::mem::size_of::<usize>(),
     );
 }
@@ -238,9 +204,9 @@ fn test_intern_unsized() {
     assert_eq!(&*v, b"hello");
     assert_eq!(v, b"hello".into());
 
-    let v: Intern<[usize]> = (&[0usize,1,2,3]).into();
-    assert_eq!(&*v, &[0,1,2,3]);
-    assert_eq!(v, (&[0usize,1,2,3]).into());
+    let v: Intern<[usize]> = (&[0usize, 1, 2, 3]).into();
+    assert_eq!(&*v, &[0, 1, 2, 3]);
+    assert_eq!(v, (&[0usize, 1, 2, 3]).into());
 }
 
 impl<T: Eq + Hash + Send + Sync + 'static> Intern<T> {
@@ -365,272 +331,23 @@ fn test_intern_set64() {
     assert_eq!(s.len(), 3);
 }
 
-/// A pointer to a reference-counted interned object.
-///
-/// This type requires feature "arc".  The interned object will be held in memory only until its
-/// reference count reaches zero.
-///
-/// # Example
-/// ```rust
-/// use internment::ArcIntern;
-///
-/// let x = ArcIntern::new("hello");
-/// let y = ArcIntern::new("world");
-/// assert_ne!(x, y);
-/// assert_eq!(x, ArcIntern::new("hello"));
-/// assert_eq!(*x, "hello"); // dereference an ArcIntern like a pointer
-/// ```
-///
-/// # Example with owned `String` data
-///
-/// ```rust
-/// use internment::ArcIntern;
-///
-/// let x = ArcIntern::new("hello".to_string());
-/// let y = ArcIntern::<String>::from("world");
-/// assert_eq!(x, ArcIntern::from("hello"));
-/// assert_eq!(&*x, "hello"); // dereference an ArcIntern like a pointer
-/// ```
-#[cfg_attr(docsrs, doc(cfg(feature = "arc")))]
-#[cfg(feature = "arc")]
-pub struct ArcIntern<T: Eq + Hash + Send + Sync + 'static> {
-    pointer: std::ptr::NonNull<RefCount<T>>,
-}
-
-#[cfg(feature = "arc")]
-unsafe impl<T: Eq + Hash + Send + Sync> Send for ArcIntern<T> {}
-#[cfg(feature = "arc")]
-unsafe impl<T: Eq + Hash + Send + Sync> Sync for ArcIntern<T> {}
-
-#[cfg(feature = "arc")]
-#[derive(Debug)]
-struct RefCount<T> {
-    count: AtomicUsize,
-    data: T,
-}
-#[cfg(feature = "arc")]
-impl<T: Eq> Eq for RefCount<T> {}
-#[cfg(feature = "arc")]
-impl<T: PartialEq> PartialEq for RefCount<T> {
-    fn eq(&self, other: &Self) -> bool {
-        self.data == other.data
-    }
-}
-#[cfg(feature = "arc")]
-impl<T: Hash> Hash for RefCount<T> {
-    fn hash<H: Hasher>(&self, hasher: &mut H) {
-        self.data.hash(hasher)
-    }
-}
-
-#[cfg(feature = "arc")]
-#[derive(Eq, PartialEq, Hash)]
-struct BoxRefCount<T>(Box<RefCount<T>>);
-#[cfg(feature = "arc")]
-impl<T> BoxRefCount<T> {
-    fn into_inner(self) -> T {
-        self.0.data
-    }
-}
-#[cfg(feature = "arc")]
-impl<T> Borrow<T> for BoxRefCount<T> {
-    fn borrow(&self) -> &T {
-        &self.0.data
-    }
-}
-#[cfg(feature = "arc")]
-impl<T> Borrow<RefCount<T>> for BoxRefCount<T> {
-    fn borrow(&self) -> &RefCount<T> {
-        &self.0
-    }
-}
-#[cfg(feature = "arc")]
-impl<T> Deref for BoxRefCount<T> {
-    type Target = T;
-    fn deref(&self) -> &Self::Target {
-        &self.0.data
-    }
-}
 
 #[cfg(feature = "arena")]
 pub mod arena;
 
-#[cfg(feature = "arc")]
-use ahash::RandomState;
-#[cfg(feature = "arc")]
-type Container<T> = DashMap<BoxRefCount<T>, (), RandomState>;
-#[cfg(feature = "arc")]
-type Untyped = Box<(dyn Any + Send + Sync + 'static)>;
+#[cfg(feature = "arena")]
+pub type Arena<T> = arena::Arena<T>;
+
+#[cfg(feature = "arena")]
+pub type ArenaIntern<'a, T> = arena::ArenaIntern<'a, T>;
+
 
 #[cfg(feature = "arc")]
-impl<T: Eq + Hash + Send + Sync + 'static> ArcIntern<T> {
-    fn get_pointer(&self) -> *const RefCount<T> {
-        self.pointer.as_ptr()
-    }
-    fn get_container() -> dashmap::mapref::one::Ref<'static, TypeId, Untyped, RandomState> {
-        use once_cell::sync::OnceCell;
-        static ARC_CONTAINERS: OnceCell<DashMap<TypeId, Untyped, RandomState>> = OnceCell::new();
-        let type_map = ARC_CONTAINERS.get_or_init(|| DashMap::with_hasher(RandomState::new()));
-        // Prefer taking the read lock to reduce contention, only use entry api if necessary.
-        let boxed = if let Some(boxed) = type_map.get(&TypeId::of::<T>()) {
-            boxed
-        } else {
-            type_map
-                .entry(TypeId::of::<T>())
-                .or_insert_with(|| Box::new(Container::<T>::with_hasher(RandomState::new())))
-                .downgrade()
-        };
-        boxed
-    }
-    /// Intern a value.  If this value has not previously been
-    /// interned, then `new` will allocate a spot for the value on the
-    /// heap.  Otherwise, it will return a pointer to the object
-    /// previously allocated.
-    ///
-    /// Note that `ArcIntern::new` is a bit slow, since it needs to check
-    /// a `DashMap` which is protected by internal sharded locks.
-    pub fn new(mut val: T) -> ArcIntern<T> {
-        loop {
-            let c = Self::get_container();
-            let m = c.downcast_ref::<Container<T>>().unwrap();
-            if let Some(b) = m.get_mut(&val) {
-                let b = b.key();
-                // First increment the count.  We are holding the write mutex here.
-                // Has to be the write mutex to avoid a race
-                let oldval = b.0.count.fetch_add(1, Ordering::SeqCst);
-                if oldval != 0 {
-                    // we can only use this value if the value is not about to be freed
-                    return ArcIntern {
-                        pointer: std::ptr::NonNull::from(b.0.borrow()),
-                    };
-                } else {
-                    // we have encountered a race condition here.
-                    // we will just wait for the object to finish
-                    // being freed.
-                    b.0.count.fetch_sub(1, Ordering::SeqCst);
-                }
-            } else {
-                let b = Box::new(RefCount {
-                    count: AtomicUsize::new(1),
-                    data: val,
-                });
-                match m.entry(BoxRefCount(b)) {
-                    Entry::Vacant(e) => {
-                        // We can insert, all is good
-                        let p = ArcIntern {
-                            pointer: std::ptr::NonNull::from(e.key().0.borrow()),
-                        };
-                        e.insert(());
-                        return p;
-                    }
-                    Entry::Occupied(e) => {
-                        // Race, map already has data, go round again
-                        let box_ref_count = e.into_key();
-                        val = box_ref_count.into_inner();
-                    }
-                }
-            }
-            // yield so that the object can finish being freed,
-            // and then we will be able to intern a new copy.
-            std::thread::yield_now();
-        }
-    }
-    /// Intern a value from a reference with atomic reference counting.
-    ///
-    /// If this value has not previously been
-    /// interned, then `new` will allocate a spot for the value on the
-    /// heap and generate that value using `T::from(val)`.
-    pub fn from<'a, Q: ?Sized + Eq + Hash + 'a>(val: &'a Q) -> ArcIntern<T>
-    where
-        T: Borrow<Q> + From<&'a Q>,
-    {
-        // No reference only fast-path as
-        // the trait `std::borrow::Borrow<Q>` is not implemented for `Arc<T>`
-        Self::new(val.into())
-    }
-    /// See how many objects have been interned.  This may be helpful
-    /// in analyzing memory use.
-    pub fn num_objects_interned() -> usize {
-        let c = Self::get_container();
-        c.downcast_ref::<Container<T>>()
-            .map(|m| m.len())
-            .unwrap_or(0)
-    }
-    /// Return the number of counts for this pointer.
-    pub fn refcount(&self) -> usize {
-        unsafe { self.pointer.as_ref().count.load(Ordering::Acquire) }
-    }
-
-    /// Only for benchmarking, this will cause problems
-    #[cfg(feature = "bench")]
-    pub fn benchmarking_only_clear_interns() {}
-}
+pub mod arc;
 
 #[cfg(feature = "arc")]
-impl<T: Eq + Hash + Send + Sync + 'static> Clone for ArcIntern<T> {
-    fn clone(&self) -> Self {
-        // First increment the count.  Using a relaxed ordering is
-        // alright here, as knowledge of the original reference
-        // prevents other threads from erroneously deleting the
-        // object.  (See `std::sync::Arc` documentation for more
-        // explanation.)
-        unsafe { self.pointer.as_ref().count.fetch_add(1, Ordering::Relaxed) };
-        ArcIntern {
-            pointer: self.pointer,
-        }
-    }
-}
+pub type ArcIntern<T> = arc::ArcIntern<T>;
 
-#[cfg(not(test))]
-#[cfg(feature = "arc")]
-fn yield_on_tests() {}
-#[cfg(test)]
-#[cfg(feature = "arc")]
-fn yield_on_tests() {
-    std::thread::yield_now();
-}
-
-#[cfg(feature = "arc")]
-impl<T: Eq + Hash + Send + Sync> Drop for ArcIntern<T> {
-    fn drop(&mut self) {
-        // (Quoting from std::sync::Arc again): Because `fetch_sub` is
-        // already atomic, we do not need to synchronize with other
-        // threads unless we are going to delete the object. This same
-        // logic applies to the below `fetch_sub` to the `weak` count.
-        let count_was = unsafe { self.pointer.as_ref().count.fetch_sub(1, Ordering::SeqCst) };
-        if count_was == 1 {
-            // The following causes the code only when testing, to yield
-            // control before taking the mutex, which should make it
-            // easier to trigger any race condition (and hopefully won't
-            // mask any other race conditions).
-            yield_on_tests();
-            // (Quoting from std::sync::Arc again): This fence is
-            // needed to prevent reordering of use of the data and
-            // deletion of the data.  Because it is marked `Release`,
-            // the decreasing of the reference count synchronizes with
-            // this `Acquire` fence. This means that use of the data
-            // happens before decreasing the reference count, which
-            // happens before this fence, which happens before the
-            // deletion of the data.
-            std::sync::atomic::fence(Ordering::SeqCst);
-
-            // removed is declared before m, so the mutex guard will be
-            // dropped *before* the removed content is dropped, since it
-            // might need to lock the mutex.
-            let _remove;
-            let c = Self::get_container();
-            let m = c.downcast_ref::<Container<T>>().unwrap();
-            _remove = m.remove(unsafe { self.pointer.as_ref() });
-        }
-    }
-}
-
-#[cfg(feature = "arc")]
-impl<T: Send + Sync + Hash + Eq> AsRef<T> for ArcIntern<T> {
-    fn as_ref(&self) -> &T {
-        unsafe { &self.pointer.as_ref().data }
-    }
-}
 impl<T: ?Sized> AsRef<T> for Intern<T> {
     fn as_ref(&self) -> &T {
         self.pointer
@@ -772,22 +489,6 @@ macro_rules! create_impls_new {
     }
 }
 
-#[cfg(feature = "arc")]
-create_impls_new!(
-    ArcIntern,
-    arcintern_impl_tests,
-    [],
-    [Eq, Hash, Send, Sync],
-    [Eq, Hash, Send, Sync]
-);
-#[cfg(feature = "arc")]
-create_impls_no_new!(
-    ArcIntern,
-    arcintern_impl_tests,
-    [],
-    [Eq, Hash, Send, Sync],
-    [Eq, Hash, Send, Sync]
-);
 create_impls_new!(
     Intern,
     normal_intern_impl_tests,
@@ -809,53 +510,6 @@ impl<T: Debug + ?Sized> Debug for Intern<T> {
         f.write_str(" : ")?;
         self.deref().fmt(f)
     }
-}
-#[cfg(feature = "arc")]
-impl<T: Eq + Hash + Send + Sync + Debug> Debug for ArcIntern<T> {
-    fn fmt(&self, f: &mut std::fmt::Formatter) -> Result<(), std::fmt::Error> {
-        Pointer::fmt(&self.pointer, f)?;
-        f.write_str(" : ")?;
-        self.deref().fmt(f)
-    }
-}
-
-#[test]
-#[cfg(feature = "arc")]
-fn test_arcintern_freeing() {
-    assert_eq!(ArcIntern::<i32>::num_objects_interned(), 0);
-    assert_eq!(ArcIntern::new(5), ArcIntern::new(5));
-    {
-        let _interned = ArcIntern::new(6);
-        assert_eq!(ArcIntern::<i32>::num_objects_interned(), 1);
-    }
-    {
-        let _interned = ArcIntern::new(6);
-        assert_eq!(ArcIntern::<i32>::num_objects_interned(), 1);
-    }
-    {
-        let _interned = ArcIntern::new(7);
-        assert_eq!(ArcIntern::<i32>::num_objects_interned(), 1);
-    }
-
-    let six = ArcIntern::new(6);
-
-    {
-        let _interned = ArcIntern::new(7);
-        assert_eq!(ArcIntern::<i32>::num_objects_interned(), 2);
-    }
-    assert_eq!(ArcIntern::new(6), six);
-}
-
-#[cfg(feature = "arc")]
-#[test]
-fn test_arcintern_nested_drop() {
-    #[derive(PartialEq, Eq, Hash)]
-    enum Nat {
-        Zero,
-        Successor(ArcIntern<Nat>),
-    }
-    let zero = ArcIntern::new(Nat::Zero);
-    let _one = ArcIntern::new(Nat::Successor(zero));
 }
 
 #[test]
@@ -880,35 +534,6 @@ fn test_intern_num_objects() {
 #[cfg(test)]
 #[derive(Eq, PartialEq, Hash)]
 pub struct TestStructCount(String, u64, std::sync::Arc<bool>);
-
-// Quickly create and destroy a small number of interned objects from
-// multiple threads.
-#[cfg(feature = "arc")]
-#[test]
-fn multithreading1() {
-    use std::sync::Arc;
-    use std::thread;
-    let mut thandles = vec![];
-    let drop_check = Arc::new(true);
-    for _i in 0..10 {
-        thandles.push(thread::spawn({
-            let drop_check = drop_check.clone();
-            move || {
-                for _i in 0..100_000 {
-                    let _interned1 =
-                        ArcIntern::new(TestStructCount("foo".to_string(), 5, drop_check.clone()));
-                    let _interned2 =
-                        ArcIntern::new(TestStructCount("bar".to_string(), 10, drop_check.clone()));
-                }
-            }
-        }));
-    }
-    for h in thandles.into_iter() {
-        h.join().unwrap()
-    }
-    assert_eq!(Arc::strong_count(&drop_check), 1);
-    assert_eq!(ArcIntern::<TestStructCount>::num_objects_interned(), 0);
-}
 
 #[cfg(test)]
 #[derive(Eq, PartialEq, Hash)]
@@ -950,10 +575,3 @@ fn multithreading_normal_intern() {
         h.join().unwrap()
     }
 }
-
-#[cfg(feature = "arena")]
-pub type Arena<T> = arena::Arena<T>;
-
-#[cfg(feature = "arena")]
-pub type ArenaIntern<'a,T> = arena::ArenaIntern<'a,T>;
-
