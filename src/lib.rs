@@ -453,7 +453,7 @@ impl<T> Deref for BoxRefCount<T> {
 }
 
 #[cfg(feature = "arena")]
-mod arena;
+pub mod arena;
 
 #[cfg(feature = "arc")]
 use ahash::RandomState;
