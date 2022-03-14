@@ -19,7 +19,7 @@ impl<'a, T> Clone for ArenaIntern<'a, T> {
 }
 impl<'a, T> Copy for ArenaIntern<'a, T> {}
 
-impl<T> Arena<T> {
+impl<T: ?Sized> Arena<T> {
     pub fn new() -> Self {
         Arena {
             data: Mutex::new(HashSet::new()),
@@ -44,7 +44,54 @@ impl<T: Eq + Hash> Arena<T> {
     }
 }
 impl<T: Eq + Hash + ?Sized> Arena<T> {
-        pub fn intern_ref<'a, 'b, I>(&'a self, val: &'b I) -> ArenaIntern<'a, T>
+        fn intern_ref<'a, 'b, I>(&'a self, val: &'b I) -> ArenaIntern<'a, T>
+    where
+        T: 'a + Borrow<I>,
+        Box<T>: From<&'b I>,
+        I: Eq + std::hash::Hash + ?Sized,
+    {
+        let mut m = self.data.lock();
+        if let Some(b) = m.get(val) {
+            let p = b.as_ref() as *const T;
+            return ArenaIntern {
+                pointer: unsafe { &*p },
+            };
+        }
+        let b: Box<T> = val.into();
+        let p = b.as_ref() as *const T;
+        m.insert(b);
+        ArenaIntern {
+            pointer: unsafe { &*p },
+        }
+    }
+}
+impl Arena<str> {
+    pub fn intern<'a, 'b>(&'a self, val: &'b str) -> ArenaIntern<'a, str> {
+        self.intern_ref(val)
+    }
+}
+impl Arena<std::ffi::CStr> {
+    pub fn intern<'a, 'b>(&'a self, val: &'b std::ffi::CStr) -> ArenaIntern<'a, std::ffi::CStr> {
+        self.intern_ref(val)
+    }
+}
+impl Arena<std::ffi::OsStr> {
+    pub fn intern<'a, 'b>(&'a self, val: &'b std::ffi::OsStr) -> ArenaIntern<'a, std::ffi::OsStr> {
+        self.intern_ref(val)
+    }
+}
+impl Arena<std::path::Path> {
+    pub fn intern<'a, 'b>(&'a self, val: &'b std::path::Path) -> ArenaIntern<'a, std::path::Path> {
+        self.intern_ref(val)
+    }
+}
+impl<T: Eq + Hash + Copy> Arena<[T]> {
+    pub fn intern<'a, 'b>(&'a self, val: &'b [T]) -> ArenaIntern<'a, [T]> {
+        self.intern_ref(val)
+    }
+}
+impl<T: Eq + Hash + ?Sized> Arena<T> {
+        pub fn intern_from<'a, 'b, I>(&'a self, val: &'b I) -> ArenaIntern<'a, T>
     where
         T: 'a + Borrow<I> + From<&'b I>,
         I: Eq + std::hash::Hash + ?Sized,
@@ -156,4 +203,19 @@ fn has_deref() {
     let b: &Option<String> = x.as_ref();
     use std::ops::Deref;
     assert_eq!(b, arena.intern(None).deref());
+}
+
+#[test]
+fn unsized_str() {
+    let arena = Arena::<str>::new();
+    let x = arena.intern("hello");
+    let b: &str = x.as_ref();
+    assert_eq!("hello", b);
+}
+
+#[test]
+fn ref_to_string() {
+    let arena = Arena::<String>::new();
+    let x = arena.intern_from("hello");
+    assert_eq!("hello", &*x);
 }
