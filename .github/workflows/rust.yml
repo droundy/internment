@@ -92,8 +92,7 @@ jobs:
             profile: minimal
             toolchain: ${{ matrix.rust }}
             override: true
-        - name: Install miri
-          run: rustup component add miri
+            components: miri
         - name: miri test normal_intern
           run: cargo miri test normal_intern
         - name: miri test arcintern
