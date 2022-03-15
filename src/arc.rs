@@ -13,6 +13,9 @@ use std::any::TypeId;
 use std::sync::atomic::AtomicUsize;
 use std::sync::atomic::Ordering;
 
+#[cfg(feature = "serde")]
+use serde::{Deserialize, Deserializer, Serialize, Serializer};
+
 /// A pointer to a reference-counted interned object.
 ///
 /// This type requires feature "arc".  The interned object will be held in memory only until its
@@ -87,7 +90,6 @@ impl<T> Deref for BoxRefCount<T> {
         &self.0.data
     }
 }
-
 
 impl<T: Eq + Hash + Send + Sync + 'static> ArcIntern<T> {
     fn get_pointer(&self) -> *const RefCount<T> {

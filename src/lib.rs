@@ -42,10 +42,6 @@
 // defined
 #![cfg_attr(docsrs, feature(doc_cfg))]
 
-#[cfg(test)]
-#[cfg(feature = "tinyset")]
-use quickcheck::quickcheck;
-
 mod boxedset;
 use boxedset::HashSet;
 use std::borrow::Borrow;
