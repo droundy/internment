@@ -140,12 +140,27 @@ impl Arena<str> {
     }
 }
 impl Arena<std::ffi::CStr> {
+    /// Intern a `&CStr` as `ArenaIntern<CStr>.
+    /// 
+    /// If this value has not previously been interned, then `intern` will
+    /// allocate a spot for the value on the heap.  Otherwise, it will return a
+    /// pointer to the `CStr` previously allocated.
     pub fn intern<'a, 'b>(&'a self, val: &'b std::ffi::CStr) -> ArenaIntern<'a, std::ffi::CStr> {
         self.intern_ref(val)
     }
+    /// Intern a `CString` as `ArenaIntern<CStr>.
+    /// 
+    /// If this value has not previously been interned, then `intern` will save
+    /// the provided `CString`.  Otherwise, it will free its input `CString` and
+    /// return a pointer to the `CStr` previously saved.
     pub fn intern_cstring(&self, val: std::ffi::CString) -> ArenaIntern<std::ffi::CStr> {
         self.intern_from_owned(val)
     }
+    /// Intern a `Box<CStr>` as `ArenaIntern<CStr>.
+    /// 
+    /// If this value has not previously been interned, then `intern` will save
+    /// the provided `Box<CSr>`.  Otherwise, it will free its input `Box<CStr>`
+    /// and return a pointer to the `CStr` previously saved.
     pub fn intern_box(&self, val: Box<std::ffi::CStr>) -> ArenaIntern<std::ffi::CStr> {
         self.intern_from_owned(val)
     }
