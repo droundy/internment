@@ -1,3 +1,15 @@
+//! An arena-allocated intern type, which is freed when the `Arena` is freed.
+//! 
+//! # Arena example
+//! ```rust
+//! use internment::Arena;
+//! let arena: Arena<&'static str> = Arena::new();
+//! let x = arena.intern("hello");
+//! let y = arena.intern("world");
+//! assert_ne!(x, y);
+//! println!("The conventional greeting is '{} {}'", x, y);
+//! ```
+
 use crate::boxedset::HashSet;
 use parking_lot::Mutex;
 use std::borrow::Borrow;
