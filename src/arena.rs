@@ -1,3 +1,4 @@
+#![deny(missing_docs)]
 use crate::boxedset::HashSet;
 use parking_lot::Mutex;
 use std::borrow::Borrow;
@@ -44,6 +45,7 @@ impl<'a, T> Copy for ArenaIntern<'a, T> {}
 /// assert!(x != z);
 /// ```
 impl<T: ?Sized> Arena<T> {
+    /// Allocate a new `Arena`
     pub fn new() -> Self {
         Arena {
             data: Mutex::new(HashSet::new()),
