@@ -8,7 +8,7 @@ strings or other data in rust.  Interned data is very efficient to
 either hash or compare for equality (just a pointer comparison).
 Data is also automatically de-duplicated.
 
-You have two options with the internment crate:
+You have three options with the internment crate:
 
 1. `Intern`, which will never free your data.  This means that an
 `Intern` is `Copy`, so you can make as many copies of the pointer
@@ -19,19 +19,31 @@ there are no more references.  `ArcIntern` will keep memory use
 down, but uses an atomic increment/decrement whenever a clone of
 your pointer is made, or a pointer is dropped.  Requires feature `arc`.
 
-In each case, accessing your data is a single pointer dereference, and
-the size of any internment data structure (`Intern` or
-`ArcIntern`) is a single pointer.  In each case, you have a guarantee
-that a single data value (as defined by `Eq` and `Hash`) will
-correspond to a single pointer value.  This means that we can use
-pointer comparison (and a pointer hash) in place of value comparisons,
-which is very fast.
+3. `ArenaIntern`, which stores its data in an `Arena`, with the data being freed
+   when the arena itself is freed.  Requires feature `arena`.
+
+In each case, accessing your data is a single pointer dereference, and the size
+of any internment data structure (`Intern` or `ArcIntern` or `ArenaIntern`) is a
+single pointer.  In each case, you have a guarantee that a single data value (as
+defined by `Eq` and `Hash`) will correspond to a single pointer value.  This
+means that we can use pointer comparison (and a pointer hash) in place of value
+comparisons, which is very fast.
 
 # Example
 ```rust
 use internment::Intern;
 let x = Intern::new("hello");
 let y = Intern::new("world");
+assert_ne!(x, y);
+println!("The conventional greeting is '{} {}'", x, y);
+```
+
+# Arena example
+```rust
+use internment::Arena;
+let arena: Arena<&'static str> = Arena::new();
+let x = arena.intern("hello");
+let y = arena.intern("world");
 assert_ne!(x, y);
 println!("The conventional greeting is '{} {}'", x, y);
 ```

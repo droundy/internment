@@ -42,6 +42,7 @@ use serde::{Deserialize, Deserializer, Serialize, Serializer};
 /// assert_eq!(x, ArcIntern::from("hello"));
 /// assert_eq!(&*x, "hello"); // dereference an ArcIntern like a pointer
 /// ```
+#[cfg_attr(docsrs, doc(cfg(feature = "arc")))]
 pub struct ArcIntern<T: Eq + Hash + Send + Sync + 'static> {
     pointer: std::ptr::NonNull<RefCount<T>>,
 }

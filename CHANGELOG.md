@@ -1,6 +1,10 @@
 
 
-* Unknown
+* 0.7.0
+
+    - Removed the `Borrow` implementation for interned types, which was not
+      compliant with the documentation for that trait.  This did not lead to
+      unsoundness, but did lead to confusing and buggy behavior.
 
     - Add new `Arena` type which can hold interned data that is then freed when
       the arena is dropped.  FIXME need to edit README

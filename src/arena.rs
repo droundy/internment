@@ -3,9 +3,11 @@ use parking_lot::Mutex;
 use std::borrow::Borrow;
 use std::hash::{Hash, Hasher};
 
+#[cfg_attr(docsrs, doc(cfg(feature = "arena")))]
 pub struct Arena<T: ?Sized> {
     data: Mutex<HashSet<Box<T>>>,
 }
+#[cfg_attr(docsrs, doc(cfg(feature = "arena")))]
 pub struct ArenaIntern<'a, T: ?Sized> {
     pub pointer: &'a T,
 }
