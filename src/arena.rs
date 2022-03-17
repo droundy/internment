@@ -51,6 +51,11 @@ impl<T: ?Sized> Arena<T> {
     }
 }
 impl<T: Eq + Hash> Arena<T> {
+    /// Intern a value.
+    /// 
+    /// If this value has not previously been interned, then `intern` will
+    /// allocate a spot for the value on the heap.  Otherwise, it will return a
+    /// pointer to the object previously allocated.
     pub fn intern(&self, val: T) -> ArenaIntern<T> {
         let mut m = self.data.lock();
         if let Some(b) = m.get(&val) {
@@ -109,12 +114,27 @@ impl<T: Eq + Hash + ?Sized> Arena<T> {
     }
 }
 impl Arena<str> {
+    /// Intern a `&str` as `ArenaIntern<str>.
+    /// 
+    /// If this value has not previously been interned, then `intern` will
+    /// allocate a spot for the value on the heap.  Otherwise, it will return a
+    /// pointer to the `str` previously allocated.
     pub fn intern<'a, 'b>(&'a self, val: &'b str) -> ArenaIntern<'a, str> {
         self.intern_ref(val)
     }
+    /// Intern a `String` as `ArenaIntern<str>.
+    /// 
+    /// If this value has not previously been interned, then `intern` will save
+    /// the provided `String`.  Otherwise, it will free its input `String` and
+    /// return a pointer to the `str` previously saved.
     pub fn intern_string(&self, val: String) -> ArenaIntern<str> {
         self.intern_from_owned(val)
     }
+    /// Intern a `Box<str>` as `ArenaIntern<str>.
+    /// 
+    /// If this value has not previously been interned, then `intern` will save
+    /// the provided `Box<str>`.  Otherwise, it will free its input `Box<str>`
+    /// and return a pointer to the `str` previously saved.
     pub fn intern_box(&self, val: Box<str>) -> ArenaIntern<str> {
         self.intern_from_owned(val)
     }

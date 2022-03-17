@@ -206,13 +206,14 @@ fn test_intern_unsized() {
 }
 
 impl<T: Eq + Hash + Send + Sync + 'static> Intern<T> {
-    /// Intern a value.  If this value has not previously been
-    /// interned, then `new` will allocate a spot for the value on the
-    /// heap.  Otherwise, it will return a pointer to the object
-    /// previously allocated.
+    /// Intern a value.
+    /// 
+    /// If this value has not previously been interned, then `new` will allocate
+    /// a spot for the value on the heap.  Otherwise, it will return a pointer
+    /// to the object previously allocated.
     ///
-    /// Note that `Intern::new` is a bit slow, since it needs to check
-    /// a `HashSet` protected by a `Mutex`.
+    /// Note that `Intern::new` is a bit slow, since it needs to check a
+    /// `HashSet` protected by a `Mutex`.
     pub fn new(val: T) -> Intern<T> {
         INTERN_CONTAINERS.with(|m: &mut HashSet<&'static T>| -> Intern<T> {
             if let Some(&b) = m.get(&val) {
