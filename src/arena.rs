@@ -21,6 +21,28 @@ impl<'a, T> Clone for ArenaIntern<'a, T> {
 }
 impl<'a, T> Copy for ArenaIntern<'a, T> {}
 
+/// A arena for storing interned data
+/// 
+/// You can use an `Arena<T>` to intern data of type `T`.  This data is then
+/// freed when the `Arena` is dropped.  An arena can hold some kinds of `!Sized`
+/// data, such as `str`.
+/// 
+/// # Example
+/// ```
+/// let arena = internment::arena::Arena::<str>::new();
+/// // You can intern a `&str` object.
+/// let x = arena.intern("world");
+/// // You can also intern a `String`, in which case the data will not be copied
+/// // if the value has not yet been interned.
+/// let y = arena.intern_string(format!("hello {}", x));
+/// // Interning a boxed `str` will also never require copying the data.
+/// let v: Box<str> = "hello world".into();
+/// let z = arena.intern_box(v);
+/// // Any comparison of interned values will only need to check that the pointers
+/// // are equal and will thus be fast.
+/// assert_eq!(y, z);
+/// assert!(x != z);
+/// ```
 impl<T: ?Sized> Arena<T> {
     pub fn new() -> Self {
         Arena {
@@ -46,7 +68,7 @@ impl<T: Eq + Hash> Arena<T> {
     }
 }
 impl<T: Eq + Hash + ?Sized> Arena<T> {
-        fn intern_ref<'a, 'b, I>(&'a self, val: &'b I) -> ArenaIntern<'a, T>
+    fn intern_ref<'a, 'b, I>(&'a self, val: &'b I) -> ArenaIntern<'a, T>
     where
         T: 'a + Borrow<I>,
         Box<T>: From<&'b I>,
@@ -66,34 +88,83 @@ impl<T: Eq + Hash + ?Sized> Arena<T> {
             pointer: unsafe { &*p },
         }
     }
+    fn intern_from_owned<I>(&self, val: I) -> ArenaIntern<T>
+    where
+        Box<T>: From<I>,
+        I: Eq + std::hash::Hash + AsRef<T>,
+    {
+        let mut m = self.data.lock();
+        if let Some(b) = m.get(val.as_ref()) {
+            let p = b.as_ref() as *const T;
+            return ArenaIntern {
+                pointer: unsafe { &*p },
+            };
+        }
+        let b: Box<T> = val.into();
+        let p = b.as_ref() as *const T;
+        m.insert(b);
+        ArenaIntern {
+            pointer: unsafe { &*p },
+        }
+    }
 }
 impl Arena<str> {
     pub fn intern<'a, 'b>(&'a self, val: &'b str) -> ArenaIntern<'a, str> {
         self.intern_ref(val)
+    }
+    pub fn intern_string(&self, val: String) -> ArenaIntern<str> {
+        self.intern_from_owned(val)
+    }
+    pub fn intern_box(&self, val: Box<str>) -> ArenaIntern<str> {
+        self.intern_from_owned(val)
     }
 }
 impl Arena<std::ffi::CStr> {
     pub fn intern<'a, 'b>(&'a self, val: &'b std::ffi::CStr) -> ArenaIntern<'a, std::ffi::CStr> {
         self.intern_ref(val)
     }
+    pub fn intern_cstring(&self, val: std::ffi::CString) -> ArenaIntern<std::ffi::CStr> {
+        self.intern_from_owned(val)
+    }
+    pub fn intern_box(&self, val: Box<std::ffi::CStr>) -> ArenaIntern<std::ffi::CStr> {
+        self.intern_from_owned(val)
+    }
 }
 impl Arena<std::ffi::OsStr> {
     pub fn intern<'a, 'b>(&'a self, val: &'b std::ffi::OsStr) -> ArenaIntern<'a, std::ffi::OsStr> {
         self.intern_ref(val)
+    }
+    pub fn intern_osstring(&self, val: std::ffi::OsString) -> ArenaIntern<std::ffi::OsStr> {
+        self.intern_from_owned(val)
+    }
+    pub fn intern_box(&self, val: Box<std::ffi::OsStr>) -> ArenaIntern<std::ffi::OsStr> {
+        self.intern_from_owned(val)
     }
 }
 impl Arena<std::path::Path> {
     pub fn intern<'a, 'b>(&'a self, val: &'b std::path::Path) -> ArenaIntern<'a, std::path::Path> {
         self.intern_ref(val)
     }
+    pub fn intern_pathbuf(&self, val: std::path::PathBuf) -> ArenaIntern<std::path::Path> {
+        self.intern_from_owned(val)
+    }
+    pub fn intern_box(&self, val: Box<std::path::Path>) -> ArenaIntern<std::path::Path> {
+        self.intern_from_owned(val)
+    }
 }
 impl<T: Eq + Hash + Copy> Arena<[T]> {
     pub fn intern<'a, 'b>(&'a self, val: &'b [T]) -> ArenaIntern<'a, [T]> {
         self.intern_ref(val)
     }
+    pub fn intern_vec(&self, val: Vec<T>) -> ArenaIntern<[T]> {
+        self.intern_from_owned(val)
+    }
+    pub fn intern_box(&self, val: Box<[T]>) -> ArenaIntern<[T]> {
+        self.intern_from_owned(val)
+    }
 }
 impl<T: Eq + Hash + ?Sized> Arena<T> {
-        pub fn intern_from<'a, 'b, I>(&'a self, val: &'b I) -> ArenaIntern<'a, T>
+    pub fn intern_from<'a, 'b, I>(&'a self, val: &'b I) -> ArenaIntern<'a, T>
     where
         T: 'a + Borrow<I> + From<&'b I>,
         I: Eq + std::hash::Hash + ?Sized,
@@ -138,7 +209,6 @@ impl<'a, T: ?Sized> ArenaIntern<'a, T> {
         self.pointer as *const T
     }
 }
-
 
 /// The hash implementation returns the hash of the pointer
 /// value, not the hash of the value pointed to.  This should
