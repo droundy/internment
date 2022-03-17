@@ -328,7 +328,6 @@ fn test_intern_set64() {
     assert_eq!(s.len(), 3);
 }
 
-
 #[cfg(feature = "arena")]
 pub mod arena;
 
