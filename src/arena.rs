@@ -12,7 +12,7 @@ use std::hash::{Hash, Hasher};
 /// 
 /// # Example
 /// ```
-/// let arena = internment::arena::Arena::<str>::new();
+/// let arena = internment::Arena::<str>::new();
 /// // You can intern a `&str` object.
 /// let x = arena.intern("world");
 /// // You can also intern a `String`, in which case the data will not be copied
