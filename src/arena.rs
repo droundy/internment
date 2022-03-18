@@ -224,15 +224,15 @@ impl Arena<std::path::Path> {
     }
 }
 impl<T: Eq + Hash + Copy> Arena<[T]> {
-    /// Intern a `&[T]` as `ArenaIntern<[T]>.
+    /// Intern a `&\[T\]` as `ArenaIntern<\[T\]>.
     /// 
     /// If this value has not previously been interned, then `intern` will
     /// allocate a spot for the value on the heap.  Otherwise, it will return a
-    /// pointer to the `[T]` previously allocated.
+    /// pointer to the `\[T\]` previously allocated.
     pub fn intern<'a, 'b>(&'a self, val: &'b [T]) -> ArenaIntern<'a, [T]> {
         self.intern_ref(val)
     }
-    /// Intern a `Vec<T>` as `ArenaIntern<[T]>.
+    /// Intern a `Vec<T>` as `ArenaIntern<\[T\]>.
     /// 
     /// If this value has not previously been interned, then `intern` will save
     /// the provided `Vec<T>`.  Otherwise, it will free its input `Vec<T>` and
@@ -240,7 +240,7 @@ impl<T: Eq + Hash + Copy> Arena<[T]> {
     pub fn intern_vec(&self, val: Vec<T>) -> ArenaIntern<[T]> {
         self.intern_from_owned(val)
     }
-    /// Intern a `Box<[T]>` as `ArenaIntern<[T]>.
+    /// Intern a `Box<[T]>` as `ArenaIntern<\[T\]>.
     /// 
     /// If this value has not previously been interned, then `intern` will save
     /// the provided `Box<CSr>`.  Otherwise, it will free its input `Box<[T]>`
