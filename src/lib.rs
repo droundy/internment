@@ -1,3 +1,4 @@
+#![deny(missing_docs)]
 // Copyright 2018,2020 David Roundy
 //
 // Licensed under the Apache License, Version 2.0, <LICENSE-APACHE or
@@ -329,20 +330,20 @@ fn test_intern_set64() {
 }
 
 #[cfg(feature = "arena")]
-pub mod arena;
+mod arena;
 
 #[cfg(feature = "arena")]
-pub type Arena<T> = arena::Arena<T>;
+pub use arena::Arena;
 
 #[cfg(feature = "arena")]
-pub type ArenaIntern<'a, T> = arena::ArenaIntern<'a, T>;
+pub use arena::ArenaIntern;
 
 
 #[cfg(feature = "arc")]
-pub mod arc;
+mod arc;
 
 #[cfg(feature = "arc")]
-pub type ArcIntern<T> = arc::ArcIntern<T>;
+pub use arc::ArcIntern;
 
 impl<T: ?Sized> AsRef<T> for Intern<T> {
     fn as_ref(&self) -> &T {

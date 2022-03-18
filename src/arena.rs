@@ -1,24 +1,4 @@
 #![deny(missing_docs)]
-
-//! An arena implementation of interning.
-//! 
-//! # Example
-//! ```
-//! let arena = internment::arena::Arena::<str>::new();
-//! // You can intern a `&str` object.
-//! let x = arena.intern("world");
-//! // You can also intern a `String`, in which case the data will not be copied
-//! // if the value has not yet been interned.
-//! let y = arena.intern_string(format!("hello {}", x));
-//! // Interning a boxed `str` will also never require copying the data.
-//! let v: Box<str> = "hello world".into();
-//! let z = arena.intern_box(v);
-//! // Any comparison of interned values will only need to check that the pointers
-//! // are equal and will thus be fast.
-//! assert_eq!(y, z);
-//! assert!(x != z);
-//! ```
-
 use crate::boxedset::HashSet;
 use parking_lot::Mutex;
 use std::borrow::Borrow;
@@ -29,6 +9,23 @@ use std::hash::{Hash, Hasher};
 /// You can use an `Arena<T>` to intern data of type `T`.  This data is then
 /// freed when the `Arena` is dropped.  An arena can hold some kinds of `!Sized`
 /// data, such as `str`.
+/// 
+/// # Example
+/// ```
+/// let arena = internment::arena::Arena::<str>::new();
+/// // You can intern a `&str` object.
+/// let x = arena.intern("world");
+/// // You can also intern a `String`, in which case the data will not be copied
+/// // if the value has not yet been interned.
+/// let y = arena.intern_string(format!("hello {}", x));
+/// // Interning a boxed `str` will also never require copying the data.
+/// let v: Box<str> = "hello world".into();
+/// let z = arena.intern_box(v);
+/// // Any comparison of interned values will only need to check that the pointers
+/// // are equal and will thus be fast.
+/// assert_eq!(y, z);
+/// assert!(x != z);
+/// ```
 #[cfg_attr(docsrs, doc(cfg(feature = "arena")))]
 pub struct Arena<T: ?Sized> {
     data: Mutex<HashSet<Box<T>>>,
