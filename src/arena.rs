@@ -1,3 +1,4 @@
+<<<<<<< HEAD
 //! An arena-allocated intern type, which is freed when the `Arena` is freed.
 //! 
 //! # Arena example
@@ -10,18 +11,44 @@
 //! println!("The conventional greeting is '{} {}'", x, y);
 //! ```
 
+=======
+#![deny(missing_docs)]
+>>>>>>> ac24391bdb2d7a96efbc6e60e9e821df36fc3c3d
 use crate::boxedset::HashSet;
 use parking_lot::Mutex;
 use std::borrow::Borrow;
 use std::hash::{Hash, Hasher};
 
+/// A arena for storing interned data
+/// 
+/// You can use an `Arena<T>` to intern data of type `T`.  This data is then
+/// freed when the `Arena` is dropped.  An arena can hold some kinds of `!Sized`
+/// data, such as `str`.
+/// 
+/// # Example
+/// ```
+/// let arena = internment::Arena::<str>::new();
+/// // You can intern a `&str` object.
+/// let x = arena.intern("world");
+/// // You can also intern a `String`, in which case the data will not be copied
+/// // if the value has not yet been interned.
+/// let y = arena.intern_string(format!("hello {}", x));
+/// // Interning a boxed `str` will also never require copying the data.
+/// let v: Box<str> = "hello world".into();
+/// let z = arena.intern_box(v);
+/// // Any comparison of interned values will only need to check that the pointers
+/// // are equal and will thus be fast.
+/// assert_eq!(y, z);
+/// assert!(x != z);
+/// ```
 #[cfg_attr(docsrs, doc(cfg(feature = "arena")))]
 pub struct Arena<T: ?Sized> {
     data: Mutex<HashSet<Box<T>>>,
 }
+/// An interned object reference with the data stored in an `Arena<T>`.
 #[cfg_attr(docsrs, doc(cfg(feature = "arena")))]
 pub struct ArenaIntern<'a, T: ?Sized> {
-    pub pointer: &'a T,
+    pointer: &'a T,
 }
 
 impl<'a, T> Clone for ArenaIntern<'a, T> {
@@ -34,6 +61,7 @@ impl<'a, T> Clone for ArenaIntern<'a, T> {
 impl<'a, T> Copy for ArenaIntern<'a, T> {}
 
 impl<T: ?Sized> Arena<T> {
+    /// Allocate a new `Arena`
     pub fn new() -> Self {
         Arena {
             data: Mutex::new(HashSet::new()),
@@ -41,6 +69,11 @@ impl<T: ?Sized> Arena<T> {
     }
 }
 impl<T: Eq + Hash> Arena<T> {
+    /// Intern a value.
+    /// 
+    /// If this value has not previously been interned, then `intern` will
+    /// allocate a spot for the value on the heap.  Otherwise, it will return a
+    /// pointer to the object previously allocated.
     pub fn intern(&self, val: T) -> ArenaIntern<T> {
         let mut m = self.data.lock();
         if let Some(b) = m.get(&val) {
@@ -58,7 +91,7 @@ impl<T: Eq + Hash> Arena<T> {
     }
 }
 impl<T: Eq + Hash + ?Sized> Arena<T> {
-        fn intern_ref<'a, 'b, I>(&'a self, val: &'b I) -> ArenaIntern<'a, T>
+    fn intern_ref<'a, 'b, I>(&'a self, val: &'b I) -> ArenaIntern<'a, T>
     where
         T: 'a + Borrow<I>,
         Box<T>: From<&'b I>,
@@ -78,34 +111,159 @@ impl<T: Eq + Hash + ?Sized> Arena<T> {
             pointer: unsafe { &*p },
         }
     }
+    fn intern_from_owned<I>(&self, val: I) -> ArenaIntern<T>
+    where
+        Box<T>: From<I>,
+        I: Eq + std::hash::Hash + AsRef<T>,
+    {
+        let mut m = self.data.lock();
+        if let Some(b) = m.get(val.as_ref()) {
+            let p = b.as_ref() as *const T;
+            return ArenaIntern {
+                pointer: unsafe { &*p },
+            };
+        }
+        let b: Box<T> = val.into();
+        let p = b.as_ref() as *const T;
+        m.insert(b);
+        ArenaIntern {
+            pointer: unsafe { &*p },
+        }
+    }
 }
 impl Arena<str> {
+    /// Intern a `&str` as `ArenaIntern<str>.
+    /// 
+    /// If this value has not previously been interned, then `intern` will
+    /// allocate a spot for the value on the heap.  Otherwise, it will return a
+    /// pointer to the `str` previously allocated.
     pub fn intern<'a, 'b>(&'a self, val: &'b str) -> ArenaIntern<'a, str> {
         self.intern_ref(val)
     }
+    /// Intern a `String` as `ArenaIntern<str>.
+    /// 
+    /// If this value has not previously been interned, then `intern` will save
+    /// the provided `String`.  Otherwise, it will free its input `String` and
+    /// return a pointer to the `str` previously saved.
+    pub fn intern_string(&self, val: String) -> ArenaIntern<str> {
+        self.intern_from_owned(val)
+    }
+    /// Intern a `Box<str>` as `ArenaIntern<str>.
+    /// 
+    /// If this value has not previously been interned, then `intern` will save
+    /// the provided `Box<str>`.  Otherwise, it will free its input `Box<str>`
+    /// and return a pointer to the `str` previously saved.
+    pub fn intern_box(&self, val: Box<str>) -> ArenaIntern<str> {
+        self.intern_from_owned(val)
+    }
 }
 impl Arena<std::ffi::CStr> {
+    /// Intern a `&CStr` as `ArenaIntern<CStr>.
+    /// 
+    /// If this value has not previously been interned, then `intern` will
+    /// allocate a spot for the value on the heap.  Otherwise, it will return a
+    /// pointer to the `CStr` previously allocated.
     pub fn intern<'a, 'b>(&'a self, val: &'b std::ffi::CStr) -> ArenaIntern<'a, std::ffi::CStr> {
         self.intern_ref(val)
     }
+    /// Intern a `CString` as `ArenaIntern<CStr>.
+    /// 
+    /// If this value has not previously been interned, then `intern` will save
+    /// the provided `CString`.  Otherwise, it will free its input `CString` and
+    /// return a pointer to the `CStr` previously saved.
+    pub fn intern_cstring(&self, val: std::ffi::CString) -> ArenaIntern<std::ffi::CStr> {
+        self.intern_from_owned(val)
+    }
+    /// Intern a `Box<CStr>` as `ArenaIntern<CStr>.
+    /// 
+    /// If this value has not previously been interned, then `intern` will save
+    /// the provided `Box<CSr>`.  Otherwise, it will free its input `Box<CStr>`
+    /// and return a pointer to the `CStr` previously saved.
+    pub fn intern_box(&self, val: Box<std::ffi::CStr>) -> ArenaIntern<std::ffi::CStr> {
+        self.intern_from_owned(val)
+    }
 }
 impl Arena<std::ffi::OsStr> {
+    /// Intern a `&OsStr` as `ArenaIntern<OsStr>.
+    /// 
+    /// If this value has not previously been interned, then `intern` will
+    /// allocate a spot for the value on the heap.  Otherwise, it will return a
+    /// pointer to the `OsStr` previously allocated.
     pub fn intern<'a, 'b>(&'a self, val: &'b std::ffi::OsStr) -> ArenaIntern<'a, std::ffi::OsStr> {
         self.intern_ref(val)
     }
+    /// Intern a `OsString` as `ArenaIntern<OsStr>.
+    /// 
+    /// If this value has not previously been interned, then `intern` will save
+    /// the provided `OsString`.  Otherwise, it will free its input `OsString` and
+    /// return a pointer to the `OsStr` previously saved.
+    pub fn intern_osstring(&self, val: std::ffi::OsString) -> ArenaIntern<std::ffi::OsStr> {
+        self.intern_from_owned(val)
+    }
+    /// Intern a `Box<OsStr>` as `ArenaIntern<OsStr>.
+    /// 
+    /// If this value has not previously been interned, then `intern` will save
+    /// the provided `Box<CSr>`.  Otherwise, it will free its input `Box<OsStr>`
+    /// and return a pointer to the `OsStr` previously saved.
+    pub fn intern_box(&self, val: Box<std::ffi::OsStr>) -> ArenaIntern<std::ffi::OsStr> {
+        self.intern_from_owned(val)
+    }
 }
 impl Arena<std::path::Path> {
+    /// Intern a `&Path` as `ArenaIntern<Path>.
+    /// 
+    /// If this value has not previously been interned, then `intern` will
+    /// allocate a spot for the value on the heap.  Otherwise, it will return a
+    /// pointer to the `Path` previously allocated.
     pub fn intern<'a, 'b>(&'a self, val: &'b std::path::Path) -> ArenaIntern<'a, std::path::Path> {
         self.intern_ref(val)
     }
+    /// Intern a `PathBuf` as `ArenaIntern<Path>.
+    /// 
+    /// If this value has not previously been interned, then `intern` will save
+    /// the provided `PathBuf`.  Otherwise, it will free its input `PathBuf` and
+    /// return a pointer to the `Path` previously saved.
+    pub fn intern_pathbuf(&self, val: std::path::PathBuf) -> ArenaIntern<std::path::Path> {
+        self.intern_from_owned(val)
+    }
+    /// Intern a `Box<Path>` as `ArenaIntern<Path>.
+    /// 
+    /// If this value has not previously been interned, then `intern` will save
+    /// the provided `Box<CSr>`.  Otherwise, it will free its input `Box<Path>`
+    /// and return a pointer to the `Path` previously saved.
+    pub fn intern_box(&self, val: Box<std::path::Path>) -> ArenaIntern<std::path::Path> {
+        self.intern_from_owned(val)
+    }
 }
 impl<T: Eq + Hash + Copy> Arena<[T]> {
+    /// Intern a `&\[T\]` as `ArenaIntern<\[T\]>.
+    /// 
+    /// If this value has not previously been interned, then `intern` will
+    /// allocate a spot for the value on the heap.  Otherwise, it will return a
+    /// pointer to the `\[T\]` previously allocated.
     pub fn intern<'a, 'b>(&'a self, val: &'b [T]) -> ArenaIntern<'a, [T]> {
         self.intern_ref(val)
     }
+    /// Intern a `Vec<T>` as `ArenaIntern<\[T\]>.
+    /// 
+    /// If this value has not previously been interned, then `intern` will save
+    /// the provided `Vec<T>`.  Otherwise, it will free its input `Vec<T>` and
+    /// return a pointer to the `[T]` previously saved.
+    pub fn intern_vec(&self, val: Vec<T>) -> ArenaIntern<[T]> {
+        self.intern_from_owned(val)
+    }
+    /// Intern a `Box<[T]>` as `ArenaIntern<\[T\]>.
+    /// 
+    /// If this value has not previously been interned, then `intern` will save
+    /// the provided `Box<CSr>`.  Otherwise, it will free its input `Box<[T]>`
+    /// and return a pointer to the `[T]` previously saved.
+    pub fn intern_box(&self, val: Box<[T]>) -> ArenaIntern<[T]> {
+        self.intern_from_owned(val)
+    }
 }
 impl<T: Eq + Hash + ?Sized> Arena<T> {
-        pub fn intern_from<'a, 'b, I>(&'a self, val: &'b I) -> ArenaIntern<'a, T>
+    /// Intern a reference to a type that can be converted into a `Box<T>` as `ArenaIntern<T>.
+    pub fn intern_from<'a, 'b, I>(&'a self, val: &'b I) -> ArenaIntern<'a, T>
     where
         T: 'a + Borrow<I> + From<&'b I>,
         I: Eq + std::hash::Hash + ?Sized,
@@ -150,7 +308,6 @@ impl<'a, T: ?Sized> ArenaIntern<'a, T> {
         self.pointer as *const T
     }
 }
-
 
 /// The hash implementation returns the hash of the pointer
 /// value, not the hash of the value pointed to.  This should

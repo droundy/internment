@@ -40,6 +40,8 @@ arc-interner = { version = "0.7", optional = true }
 arc = ["ahash", "dashmap", "once_cell"]
 bench = ["arc", "arc-interner", "arena", "memorable-wordlist"]
 arena = []
+intern = []
+default = ["intern"]
 
 [dev-dependencies]
 

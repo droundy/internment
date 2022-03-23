@@ -1,3 +1,4 @@
+#![deny(missing_docs)]
 use ahash::RandomState;
 use std::fmt::{Debug, Display, Pointer};
 type Container<T> = DashMap<BoxRefCount<T>, (), RandomState>;
