@@ -1,19 +1,4 @@
-<<<<<<< HEAD
-//! An arena-allocated intern type, which is freed when the `Arena` is freed.
-//! 
-//! # Arena example
-//! ```rust
-//! use internment::Arena;
-//! let arena: Arena<&'static str> = Arena::new();
-//! let x = arena.intern("hello");
-//! let y = arena.intern("world");
-//! assert_ne!(x, y);
-//! println!("The conventional greeting is '{} {}'", x, y);
-//! ```
-
-=======
 #![deny(missing_docs)]
->>>>>>> ac24391bdb2d7a96efbc6e60e9e821df36fc3c3d
 use crate::boxedset::HashSet;
 use parking_lot::Mutex;
 use std::borrow::Borrow;
@@ -41,6 +26,17 @@ use std::hash::{Hash, Hasher};
 /// assert_eq!(y, z);
 /// assert!(x != z);
 /// ```
+/// 
+/// # Another example
+/// ```rust
+/// use internment::Arena;
+/// let arena: Arena<&'static str> = Arena::new();
+/// let x = arena.intern("hello");
+/// let y = arena.intern("world");
+/// assert_ne!(x, y);
+/// println!("The conventional greeting is '{} {}'", x, y);
+/// ```
+
 #[cfg_attr(docsrs, doc(cfg(feature = "arena")))]
 pub struct Arena<T: ?Sized> {
     data: Mutex<HashSet<Box<T>>>,
