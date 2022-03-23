@@ -54,7 +54,7 @@ fn like_doctest_intern() {
     assert_eq!(&*x, "hello"); // dereference a Intern like a pointer\
 }
 
-#[cfg_attr(docsrs, doc(cfg(feature = "arc")))]
+#[cfg_attr(docsrs, doc(cfg(feature = "intern")))]
 /// A pointer to an interned object
 /// 
 /// An `Intern` points to an object that has been leaked and may be used in any
