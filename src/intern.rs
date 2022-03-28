@@ -294,161 +294,133 @@ impl<T: ?Sized> AsRef<T> for Intern<T> {
     }
 }
 
-macro_rules! create_impls_no_new {
-    ( $Intern:ident, $testname:ident,
-      [$( $lifetimes:lifetime ),*],
-      [$( $traits:ident ),*], [$( $newtraits:ident ),*] ) => {
-
-        impl<$( $lifetimes,)* T: $( $traits +)* ?Sized> Deref for $Intern<$( $lifetimes,)* T> {
-            type Target = T;
-            fn deref(&self) -> &T {
-                self.as_ref()
-            }
-        }
-
-        impl<$( $lifetimes,)* T: $( $traits +)* Display + ?Sized> Display for $Intern<$( $lifetimes,)* T> {
-            fn fmt(&self, f: &mut std::fmt::Formatter) -> Result<(), std::fmt::Error> {
-                self.deref().fmt(f)
-            }
-        }
-
-        impl<$( $lifetimes,)* T: $( $traits +)* ?Sized> Pointer for $Intern<$( $lifetimes,)* T> {
-            fn fmt(&self, f: &mut std::fmt::Formatter) -> Result<(), std::fmt::Error> {
-                Pointer::fmt(&self.get_pointer(), f)
-            }
-        }
-
-        /// The hash implementation returns the hash of the pointer
-        /// value, not the hash of the value pointed to.  This should
-        /// be irrelevant, since there is a unique pointer for every
-        /// value, but it *is* observable, since you could compare the
-        /// hash of the pointer with hash of the data itself.
-        impl<$( $lifetimes,)* T: $( $traits +)* ?Sized> Hash for $Intern<$( $lifetimes,)* T> {
-            fn hash<H: Hasher>(&self, state: &mut H) {
-                self.get_pointer().hash(state);
-            }
-        }
-
-        impl<$( $lifetimes,)* T: $( $traits +)* ?Sized> PartialEq for $Intern<$( $lifetimes,)* T> {
-            fn eq(&self, other: &Self) -> bool {
-                self.get_pointer() == other.get_pointer()
-            }
-        }
-        impl<$( $lifetimes,)* T: $( $traits +)* ?Sized> Eq for $Intern<$( $lifetimes,)* T> {}
-
-        impl<$( $lifetimes,)* T: $( $traits +)* PartialOrd + ?Sized> PartialOrd for $Intern<$( $lifetimes,)* T> {
-            fn partial_cmp(&self, other: &Self) -> Option<std::cmp::Ordering> {
-                self.as_ref().partial_cmp(other)
-            }
-            fn lt(&self, other: &Self) -> bool { self.as_ref().lt(other) }
-            fn le(&self, other: &Self) -> bool { self.as_ref().le(other) }
-            fn gt(&self, other: &Self) -> bool { self.as_ref().gt(other) }
-            fn ge(&self, other: &Self) -> bool { self.as_ref().ge(other) }
-        }
-        impl<$( $lifetimes,)* T: $( $traits +)* Ord + ?Sized> Ord for $Intern<$( $lifetimes,)* T> {
-            fn cmp(&self, other: &Self) -> std::cmp::Ordering {
-                self.as_ref().cmp(other)
-            }
-        }
-
-        #[cfg_attr(docsrs, doc(cfg(feature = "serde")))]
-		#[cfg(feature = "serde")]
-		impl<$( $lifetimes,)* T: $( $traits +)* Serialize> Serialize for $Intern<$( $lifetimes,)* T> {
-            fn serialize<S: Serializer>(&self, serializer: S) -> Result<S::Ok, S::Error> {
-                self.as_ref().serialize(serializer)
-            }
-        }
-    }
-}
-macro_rules! create_impls_new {
-    ( $Intern:ident, $testname:ident,
-      [$( $lifetimes:lifetime ),*],
-      [$( $traits:ident ),*], [$( $newtraits:ident ),*] ) => {
-
-        impl<$( $lifetimes,)* T: $( $newtraits +)* 'static> From<T> for $Intern<$( $lifetimes,)* T> {
-            fn from(t: T) -> Self {
-                $Intern::new(t)
-            }
-        }
-        impl<$( $lifetimes,)* T: $( $newtraits +)* Default + 'static> Default for $Intern<$( $lifetimes,)* T> {
-            fn default() -> Self {
-                $Intern::new(Default::default())
-            }
-        }
-
-        #[cfg_attr(docsrs, doc(cfg(feature = "serde")))]
-		#[cfg(feature = "serde")]
-		impl<'de, $( $lifetimes,)* T: $( $newtraits +)* 'static + Deserialize<'de>> Deserialize<'de> for $Intern<$( $lifetimes,)* T> {
-            fn deserialize<D: Deserializer<'de>>(deserializer: D) -> Result<Self, D::Error> {
-                T::deserialize(deserializer).map(|x: T| Self::new(x))
-            }
-        }
-
-        #[cfg(test)]
-        mod $testname {
-            use super::$Intern;
-            use super::{Borrow,Deref};
-            #[test]
-            fn eq_string() {
-                assert_eq!($Intern::new("hello"), $Intern::new("hello"));
-                assert_ne!($Intern::new("goodbye"), $Intern::new("farewell"));
-            }
-            #[test]
-            fn display() {
-                let world = $Intern::new("world");
-                println!("Hello {}", world);
-            }
-            #[test]
-            fn debug() {
-                let world = $Intern::new("world");
-                println!("Hello {:?}", world);
-            }
-            #[test]
-            fn has_default() {
-                assert_eq!( $Intern::<Option<String>>::default(),
-                            $Intern::<Option<String>>::new(None));
-            }
-            #[test]
-            fn can_clone() {
-                assert_eq!( $Intern::<Option<String>>::default().clone(),
-                            $Intern::<Option<String>>::new(None));
-            }
-            #[test]
-            fn has_borrow() {
-                let x = $Intern::<Option<String>>::default();
-                let b: &Option<String> = x.borrow();
-                assert_eq!( b, $Intern::<Option<String>>::new(None).as_ref());
-            }
-            #[test]
-            fn has_deref() {
-                let x = $Intern::<Option<String>>::default();
-                let b: &Option<String> = x.as_ref();
-                assert_eq!( b, $Intern::<Option<String>>::new(None).deref());
-            }
-        }
+impl<T: Eq + Hash + Send + Sync + ?Sized> Deref for Intern<T> {
+    type Target = T;
+    fn deref(&self) -> &T {
+        self.as_ref()
     }
 }
 
-create_impls_new!(
-    Intern,
-    normal_intern_impl_tests,
-    [],
-    [],
-    [Eq, Hash, Send, Sync]
-);
-create_impls_no_new!(
-    Intern,
-    normal_intern_impl_tests,
-    [],
-    [],
-    [Eq, Hash, Send, Sync]
-);
+impl<T: Eq + Hash + Send + Sync + Display + ?Sized> Display for Intern<T> {
+    fn fmt(&self, f: &mut std::fmt::Formatter) -> Result<(), std::fmt::Error> {
+        self.deref().fmt(f)
+    }
+}
+
+impl<T: Eq + Hash + Send + Sync + ?Sized> Pointer for Intern<T> {
+    fn fmt(&self, f: &mut std::fmt::Formatter) -> Result<(), std::fmt::Error> {
+        Pointer::fmt(&self.get_pointer(), f)
+    }
+}
+
+/// The hash implementation returns the hash of the pointer
+/// value, not the hash of the value pointed to.  This should
+/// be irrelevant, since there is a unique pointer for every
+/// value, but it *is* observable, since you could compare the
+/// hash of the pointer with hash of the data itself.
+impl<T: Eq + Hash + Send + Sync + ?Sized> Hash for Intern<T> {
+    fn hash<H: Hasher>(&self, state: &mut H) {
+        self.get_pointer().hash(state);
+    }
+}
+
+impl<T: Eq + Hash + Send + Sync + ?Sized> PartialEq for Intern<T> {
+    fn eq(&self, other: &Self) -> bool {
+        self.get_pointer() == other.get_pointer()
+    }
+}
+impl<T: Eq + Hash + Send + Sync + ?Sized> Eq for Intern<T> {}
+
+impl<T: Eq + Hash + Send + Sync + PartialOrd + ?Sized> PartialOrd for Intern<T> {
+    fn partial_cmp(&self, other: &Self) -> Option<std::cmp::Ordering> {
+        self.as_ref().partial_cmp(other)
+    }
+    fn lt(&self, other: &Self) -> bool { self.as_ref().lt(other) }
+    fn le(&self, other: &Self) -> bool { self.as_ref().le(other) }
+    fn gt(&self, other: &Self) -> bool { self.as_ref().gt(other) }
+    fn ge(&self, other: &Self) -> bool { self.as_ref().ge(other) }
+}
+impl<T: Eq + Hash + Send + Sync + Ord + ?Sized> Ord for Intern<T> {
+    fn cmp(&self, other: &Self) -> std::cmp::Ordering {
+        self.as_ref().cmp(other)
+    }
+}
+
+#[cfg_attr(docsrs, doc(cfg(feature = "serde")))]
+#[cfg(feature = "serde")]
+impl<T: Eq + Hash + Send + Sync + Serialize> Serialize for Intern<T> {
+    fn serialize<S: Serializer>(&self, serializer: S) -> Result<S::Ok, S::Error> {
+        self.as_ref().serialize(serializer)
+    }
+}
+
+impl<T: Eq + Hash + Send + Sync +'static> From<T> for Intern<T> {
+    fn from(t: T) -> Self {
+        Intern::new(t)
+    }
+}
+impl<T: Eq + Hash + Send + Sync +Default + 'static> Default for Intern<T> {
+    fn default() -> Self {
+        Intern::new(Default::default())
+    }
+}
+
+#[cfg_attr(docsrs, doc(cfg(feature = "serde")))]
+#[cfg(feature = "serde")]
+impl<'de, T: Eq + Hash + Send + Sync +'static + Deserialize<'de>> Deserialize<'de> for Intern<T> {
+    fn deserialize<D: Deserializer<'de>>(deserializer: D) -> Result<Self, D::Error> {
+        T::deserialize(deserializer).map(|x: T| Self::new(x))
+    }
+}
+
+#[cfg(test)]
+mod intern_tests {
+    use super::Intern;
+    use super::{Borrow,Deref};
+    #[test]
+    fn eq_string() {
+        assert_eq!(Intern::new("hello"), Intern::new("hello"));
+        assert_ne!(Intern::new("goodbye"), Intern::new("farewell"));
+    }
+    #[test]
+    fn display() {
+        let world = Intern::new("world");
+        println!("Hello {}", world);
+    }
+    #[test]
+    fn debug() {
+        let world = Intern::new("world");
+        println!("Hello {:?}", world);
+    }
+    #[test]
+    fn has_default() {
+        assert_eq!( Intern::<Option<String>>::default(),
+                    Intern::<Option<String>>::new(None));
+    }
+    #[test]
+    fn can_clone() {
+        assert_eq!( Intern::<Option<String>>::default().clone(),
+                    Intern::<Option<String>>::new(None));
+    }
+    #[test]
+    fn has_borrow() {
+        let x = Intern::<Option<String>>::default();
+        let b: &Option<String> = x.borrow();
+        assert_eq!( b, Intern::<Option<String>>::new(None).as_ref());
+    }
+    #[test]
+    fn has_deref() {
+        let x = Intern::<Option<String>>::default();
+        let b: &Option<String> = x.as_ref();
+        assert_eq!( b, Intern::<Option<String>>::new(None).deref());
+    }
+}
 
 impl<T: Debug + ?Sized> Debug for Intern<T> {
     fn fmt(&self, f: &mut std::fmt::Formatter) -> Result<(), std::fmt::Error> {
         std::fmt::Debug::fmt(&self.get_pointer(), f)?;
         f.write_str(" : ")?;
-        self.deref().fmt(f)
+        self.as_ref().fmt(f)
     }
 }
 
