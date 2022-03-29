@@ -9,6 +9,10 @@
     - Add new `Arena` type which can hold interned data that is then freed when
       the arena is dropped.  FIXME need to edit README
 
+    - Renamed the intrinsic `from` method (which shadowed the `From` trait), so
+      it would be easier and less  confusing to use `From` to create `Intern<T>`
+      for `!Sized` types.
+
 * 0.6.0 - February 11, 2022
 
     - Removed `LocalIntern`, since I concluded that it was unsound.

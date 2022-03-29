@@ -35,10 +35,13 @@ serde = { version = "1.0", optional = true }
 
 arc-interner = { version = "0.7", optional = true }
 
+append-only-vec = { version = "0.1.2", optional = true }
+
+
 [features]
 
 arc = ["ahash", "dashmap", "once_cell"]
-bench = ["arc", "arc-interner", "arena", "memorable-wordlist"]
+bench = ["arc", "arc-interner", "arena", "memorable-wordlist", "append-only-vec"]
 arena = []
 intern = []
 default = ["intern"]

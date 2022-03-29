@@ -87,7 +87,8 @@ impl<T: Eq + Hash> Arena<T> {
     }
 }
 impl<T: Eq + Hash + ?Sized> Arena<T> {
-    fn intern_ref<'a, 'b, I>(&'a self, val: &'b I) -> ArenaIntern<'a, T>
+    /// Tedst
+    pub fn intern_ref<'a, 'b, I>(&'a self, val: &'b I) -> ArenaIntern<'a, T>
     where
         T: 'a + Borrow<I>,
         Box<T>: From<&'b I>,

@@ -1,13 +1,86 @@
 #![deny(missing_docs)]
+use std::any::Any;
+use std::any::TypeId;
+use std::hash::{Hash, Hasher};
+
+use append_only_vec::AppendOnlyVec;
+
+struct AnySend(Box<dyn Any + Send + Sync>);
+
+const CONTAINER_COUNT: usize = 32;
+const EMPTY: AppendOnlyVec<AnySend> = AppendOnlyVec::new();
+static CONTAINERS: [AppendOnlyVec<AnySend>; CONTAINER_COUNT] = [EMPTY; CONTAINER_COUNT];
+
+pub fn with_mutex_hashset<F, T, R>(f: F) -> R
+where
+    F: FnOnce(&mut HashSet<T>) -> R,
+    T: Any + Send + Sync,
+{
+    // Compute the hash of the type.
+    fn hash_of_type<T: 'static>() -> usize {
+        // We use very simple hasher, because it is optimized away to a constant:
+        // https://rust.godbolt.org/z/4T1fa4GGs
+        // which is not true for using `DefaultHasher`:
+        // https://rust.godbolt.org/z/qKar1WKfz
+        struct HasherForTypeId {
+            hash: u64,
+        }
+
+        impl Hasher for HasherForTypeId {
+            fn write(&mut self, bytes: &[u8]) {
+                // Hash for type only calls `write_u64` once,
+                // but handle this case explicitly to make sure
+                // this code doesn't break if stdlib internals change.
+
+                for byte in bytes {
+                    self.hash = self.hash.wrapping_mul(31).wrapping_add(*byte as u64);
+                }
+            }
+
+            fn write_u64(&mut self, v: u64) {
+                self.hash = v;
+            }
+
+            fn finish(&self) -> u64 {
+                self.hash
+            }
+        }
+
+        let mut hasher = HasherForTypeId { hash: 0 };
+        TypeId::of::<Mutex<HashSet<T>>>().hash(&mut hasher);
+        hasher.hash as usize
+    }
+
+    use core::ops::DerefMut;
+    for v in CONTAINERS[hash_of_type::<T>() % CONTAINER_COUNT].iter() {
+        if let Some(m) = v.0.downcast_ref::<Mutex<HashSet<T>>>() {
+            let mut m = m.lock();
+            return f(m.deref_mut());
+        }
+    }
+    let default: Mutex<HashSet<T>> = Mutex::new(HashSet::new());
+    CONTAINERS[hash_of_type::<T>() % CONTAINER_COUNT].push(AnySend(Box::new(default)));
+    // We now search through the AppendOnlyVec, just in case there was a race
+    // and two things of the same type got pushed sumultaneously.  If that
+    // happens, we'll just use the first one.  It's a little hokey leaving this
+    // race condition here, but at worst it should just slow down access to a
+    // different type.
+    for v in CONTAINERS[hash_of_type::<T>() % CONTAINER_COUNT].iter() {
+        if let Some(m) = v.0.downcast_ref::<Mutex<HashSet<T>>>() {
+            let mut m = m.lock();
+            return f(m.deref_mut());
+        }
+    }
+    unreachable!()
+}
+
 use super::boxedset;
 use boxedset::HashSet;
 use std::borrow::Borrow;
 use std::convert::AsRef;
 use std::fmt::{Debug, Display, Pointer};
-use std::hash::{Hash, Hasher};
 use std::ops::Deref;
-
-use super::container;
+use parking_lot::Mutex;
 
 #[cfg(feature = "serde")]
 use serde::{Deserialize, Deserializer, Serialize, Serializer};
@@ -37,7 +110,7 @@ use tinyset::Fits64;
 /// use internment::Intern;
 ///
 /// let x = Intern::new("hello".to_string());
-/// let y = Intern::<String>::from_ref("world");
+/// let y = Intern::<String>::from("world");
 /// assert_ne!(x, y);
 /// assert_eq!(x, Intern::from("hello"));
 /// assert_eq!(y, Intern::from("world"));
@@ -47,10 +120,10 @@ use tinyset::Fits64;
 #[test]
 fn like_doctest_intern() {
     let x = Intern::new("hello".to_string());
-    let y = Intern::<String>::from_ref("world");
+    let y = Intern::<String>::from("world");
     assert_ne!(x, y);
-    assert_eq!(x, Intern::from_ref("hello"));
-    assert_eq!(y, Intern::from_ref("world"));
+    assert_eq!(x, Intern::from("hello"));
+    assert_eq!(y, Intern::from("world"));
     assert_eq!(&*x, "hello"); // dereference a Intern like a pointer\
 }
 
@@ -93,8 +166,6 @@ impl<T: ?Sized> Intern<T> {
     }
 }
 
-static INTERN_CONTAINERS: container::Arena = container::Arena::new();
-
 macro_rules! from_via_box {
     ($t:ty) => {
         impl From<&$t> for Intern<$t> {
@@ -127,7 +198,7 @@ impl<T: Eq + Hash + Send + Sync + 'static + ?Sized> Intern<T> {
         Box<T>: From<&'a I>,
         I: Borrow<T> + ?Sized,
     {
-        INTERN_CONTAINERS.with(|m: &mut HashSet<&'static T>| -> Self {
+        with_mutex_hashset(|m: &mut HashSet<&'static T>| -> Self {
             if let Some(&b) = m.get(val.borrow()) {
                 return Intern { pointer: b };
             }
@@ -140,7 +211,7 @@ impl<T: Eq + Hash + Send + Sync + 'static + ?Sized> Intern<T> {
 
 impl<T: Eq + Hash + Send + Sync + 'static + ?Sized> From<Box<T>> for Intern<T> {
     fn from(val: Box<T>) -> Self {
-        INTERN_CONTAINERS.with(|m: &mut HashSet<&'static T>| -> Self {
+        with_mutex_hashset(|m: &mut HashSet<&'static T>| -> Self {
             if let Some(&b) = m.get(val.borrow()) {
                 return Intern { pointer: b };
             }
@@ -175,7 +246,7 @@ impl<T: Eq + Hash + Send + Sync + 'static> Intern<T> {
     /// Note that `Intern::new` is a bit slow, since it needs to check a
     /// `HashSet` protected by a `Mutex`.
     pub fn new(val: T) -> Intern<T> {
-        INTERN_CONTAINERS.with(|m: &mut HashSet<&'static T>| -> Intern<T> {
+        with_mutex_hashset(|m: &mut HashSet<&'static T>| -> Intern<T> {
             if let Some(&b) = m.get(&val) {
                 return Intern { pointer: b };
             }
@@ -186,14 +257,14 @@ impl<T: Eq + Hash + Send + Sync + 'static> Intern<T> {
     }
     /// Intern a value from a reference.
     ///
-    /// If this value has not previously been interned, then `new` will allocate
-    /// a spot for the value on the heap and generate that value using
-    /// `T::from(val)`.
-    pub fn from_ref<'a, Q: ?Sized + Eq + Hash + 'a>(val: &'a Q) -> Intern<T>
+    /// If this value has not previously been
+    /// interned, then `new` will allocate a spot for the value on the
+    /// heap and generate that value using `T::from(val)`.
+    pub fn from<'a, Q: ?Sized + Eq + Hash + 'a>(val: &'a Q) -> Intern<T>
     where
         T: Borrow<Q> + From<&'a Q>,
     {
-        INTERN_CONTAINERS.with(|m: &mut HashSet<&'static T>| -> Intern<T> {
+        with_mutex_hashset(|m: &mut HashSet<&'static T>| -> Intern<T> {
             if let Some(&b) = m.get(val) {
                 return Intern { pointer: b };
             }
@@ -203,7 +274,8 @@ impl<T: Eq + Hash + Send + Sync + 'static> Intern<T> {
         })
     }
 }
-impl<T: Eq + Hash + Send + Sync + 'static + ?Sized> Intern<T> {
+
+impl<T: Any + Eq + Hash + Send + Sync + ?Sized> Intern<T> {
     /// Get a long-lived reference to the data pointed to by an `Intern`, which
     /// is never freed from the intern pool.
     pub fn as_ref(self) -> &'static T {
@@ -212,13 +284,13 @@ impl<T: Eq + Hash + Send + Sync + 'static + ?Sized> Intern<T> {
     /// See how many objects have been interned.  This may be helpful
     /// in analyzing memory use.
     pub fn num_objects_interned() -> usize {
-        INTERN_CONTAINERS.with(|m: &mut HashSet<&'static T>| -> usize { m.len() })
+        with_mutex_hashset(|m: &mut HashSet<&'static T>| -> usize { m.len() })
     }
 
     /// Only for benchmarking, this will cause problems
     #[cfg(feature = "bench")]
     pub fn benchmarking_only_clear_interns() {
-        INTERN_CONTAINERS.with(|m: &mut HashSet<&'static T>| -> () { m.clear() })
+        with_mutex_hashset(|m: &mut HashSet<&'static T>| -> () { m.clear() })
     }
 }
 
@@ -415,11 +487,6 @@ mod intern_tests {
             Intern::<Option<String>>::default().clone(),
             Intern::<Option<String>>::new(None)
         );
-    }
-    #[test]
-    fn can_clone_str() {
-        let x: Intern<str> = From::from("hello");
-        assert_eq!(x, x.clone());
     }
     #[test]
     fn has_borrow() {

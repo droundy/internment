@@ -39,8 +39,8 @@ use serde::{Deserialize, Deserializer, Serialize, Serializer};
 /// use internment::ArcIntern;
 ///
 /// let x = ArcIntern::new("hello".to_string());
-/// let y = ArcIntern::<String>::from("world");
-/// assert_eq!(x, ArcIntern::from("hello"));
+/// let y = ArcIntern::<String>::from_ref("world");
+/// assert_eq!(x, ArcIntern::from_ref("hello"));
 /// assert_eq!(&*x, "hello"); // dereference an ArcIntern like a pointer
 /// ```
 #[cfg_attr(docsrs, doc(cfg(feature = "arc")))]
@@ -170,7 +170,7 @@ impl<T: Eq + Hash + Send + Sync + 'static> ArcIntern<T> {
     /// If this value has not previously been
     /// interned, then `new` will allocate a spot for the value on the
     /// heap and generate that value using `T::from(val)`.
-    pub fn from<'a, Q: ?Sized + Eq + Hash + 'a>(val: &'a Q) -> ArcIntern<T>
+    pub fn from_ref<'a, Q: ?Sized + Eq + Hash + 'a>(val: &'a Q) -> ArcIntern<T>
     where
         T: Borrow<Q> + From<&'a Q>,
     {
@@ -489,9 +489,9 @@ fn arc_has_niche() {
 #[test]
 fn like_doctest_arcintern() {
     let x = ArcIntern::new("hello".to_string());
-    let y = ArcIntern::<String>::from("world");
+    let y = ArcIntern::<String>::from_ref("world");
     assert_ne!(x, y);
-    assert_eq!(x, ArcIntern::from("hello"));
-    assert_eq!(y, ArcIntern::from("world"));
+    assert_eq!(x, ArcIntern::from_ref("hello"));
+    assert_eq!(y, ArcIntern::from_ref("world"));
     assert_eq!(&*x, "hello"); // dereference a Intern like a pointer\
 }
