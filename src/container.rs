@@ -33,42 +33,9 @@ pub struct Arena {
 
 impl Arena {
     pub const fn new() -> Self {
+        const EMPTY: Mutex<TypeHolderSend> = parking_lot::const_mutex(TypeHolderSend::new());
         Arena {
-            containers: [
-                // There's no way to create a static array without copy-paste.
-                parking_lot::const_mutex(TypeHolderSend::new()),
-                parking_lot::const_mutex(TypeHolderSend::new()),
-                parking_lot::const_mutex(TypeHolderSend::new()),
-                parking_lot::const_mutex(TypeHolderSend::new()),
-                parking_lot::const_mutex(TypeHolderSend::new()),
-                parking_lot::const_mutex(TypeHolderSend::new()),
-                parking_lot::const_mutex(TypeHolderSend::new()),
-                parking_lot::const_mutex(TypeHolderSend::new()),
-                parking_lot::const_mutex(TypeHolderSend::new()),
-                parking_lot::const_mutex(TypeHolderSend::new()),
-                parking_lot::const_mutex(TypeHolderSend::new()),
-                parking_lot::const_mutex(TypeHolderSend::new()),
-                parking_lot::const_mutex(TypeHolderSend::new()),
-                parking_lot::const_mutex(TypeHolderSend::new()),
-                parking_lot::const_mutex(TypeHolderSend::new()),
-                parking_lot::const_mutex(TypeHolderSend::new()),
-                parking_lot::const_mutex(TypeHolderSend::new()),
-                parking_lot::const_mutex(TypeHolderSend::new()),
-                parking_lot::const_mutex(TypeHolderSend::new()),
-                parking_lot::const_mutex(TypeHolderSend::new()),
-                parking_lot::const_mutex(TypeHolderSend::new()),
-                parking_lot::const_mutex(TypeHolderSend::new()),
-                parking_lot::const_mutex(TypeHolderSend::new()),
-                parking_lot::const_mutex(TypeHolderSend::new()),
-                parking_lot::const_mutex(TypeHolderSend::new()),
-                parking_lot::const_mutex(TypeHolderSend::new()),
-                parking_lot::const_mutex(TypeHolderSend::new()),
-                parking_lot::const_mutex(TypeHolderSend::new()),
-                parking_lot::const_mutex(TypeHolderSend::new()),
-                parking_lot::const_mutex(TypeHolderSend::new()),
-                parking_lot::const_mutex(TypeHolderSend::new()),
-                parking_lot::const_mutex(TypeHolderSend::new()),
-            ],
+            containers: [EMPTY; INTERN_CONTAINER_COUNT],
         }
     }
 
