@@ -6,6 +6,6 @@ output-type: lcov
 output-path: ./lcov.info
 keep-only:
   - "src/*"
-excl-line: "#\\[(derive(.*)\\]"
-excl-start: "#\\[test\\]"
-excl-stop: "^\\}$"
+excl-line: "#.derive.+"
+excl-start: "#.+test..?$"
+excl-stop: "^$"
