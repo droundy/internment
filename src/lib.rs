@@ -51,6 +51,7 @@ mod boxedset;
 #[cfg(feature = "append-only-vec")]
 mod typearena;
 
+#[doc(hidden)]
 #[cfg(feature = "append-only-vec")]
 pub use typearena::Intern as NewIntern;
 
