@@ -29,6 +29,10 @@ defined by `Eq` and `Hash`) will correspond to a single pointer value.  This
 means that we can use pointer comparison (and a pointer hash) in place of value
 comparisons, which is very fast.
 
+Also note that if you do not use the `Intern` type, you may wish to compile with
+`cargo build --no-default-features --features arc` (or `arena`), which will
+slightly speed up your build and trim down your executable size.
+
 # Example
 ```rust
 use internment::Intern;
