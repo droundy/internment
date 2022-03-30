@@ -4,10 +4,8 @@ llvm: true
 filter: covered
 output-type: lcov
 output-path: ./lcov.info
-ignore:
-  - "/*"
-  - "../*"
-  - "*/registry/*"
+keep-only:
+  - "src/*"
 excl-br-line: "#\\[(derive(.*)\\]"
 excl-br-start: "#\\[test\\]"
 excl-br-stop: "^\\}$"
