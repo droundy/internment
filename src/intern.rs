@@ -243,11 +243,8 @@ fn heap_location() -> u64 {
             std::sync::atomic::Ordering::Relaxed,
         ) {
             Ok(_) => ptr as u64,
-            Err(ptr) => {
-                println!("race, ptr is {:p}", ptr);
-                ptr as u64
-            }
-        }
+            Err(ptr) => ptr as u64, // this means another thread allocated this.
+        };
     }
     p
 }
@@ -437,11 +434,11 @@ mod intern_tests {
     #[cfg(test)]
     #[derive(Eq, PartialEq, Hash)]
     pub struct TestStructCount(String, u64, std::sync::Arc<bool>);
-    
+
     #[cfg(test)]
     #[derive(Eq, PartialEq, Hash)]
     pub struct TestStruct(String, u64);
-    
+
     // Quickly create a small number of interned objects from
     // multiple threads.
     #[test]
@@ -478,7 +475,7 @@ mod intern_tests {
             h.join().unwrap()
         }
     }
-    }
+}
 
 impl<T: Debug + ?Sized> Debug for Intern<T> {
     fn fmt(&self, f: &mut std::fmt::Formatter) -> Result<(), std::fmt::Error> {
@@ -506,4 +503,3 @@ fn test_intern_num_objects() {
         assert_eq!(Intern::<i32>::num_objects_interned(), 3);
     }
 }
-
