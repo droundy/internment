@@ -1,17 +1,22 @@
 
 
-* 0.7.0
+* 0.7.0 - March 30, 2022
 
     - Removed the `Borrow` implementation for interned types, which was not
       compliant with the documentation for that trait.  This did not lead to
       unsoundness, but did lead to confusing and buggy behavior.
 
     - Add new `Arena` type which can hold interned data that is then freed when
-      the arena is dropped.  FIXME need to edit README
+      the arena is dropped.
 
     - Renamed the intrinsic `from` method (which shadowed the `From` trait), so
       it would be easier and less  confusing to use `From` to create `Intern<T>`
       for `!Sized` types.
+
+    - Added at least rudimentary support for common `!Sized` types, such as
+      `Intern<str>`, `Intern<[u8]>` or `Intern<Path>`.  Please report any bugs
+      you might encounter, as the test suite on such types is not fully
+      populated.
 
 * 0.6.0 - February 11, 2022
 
