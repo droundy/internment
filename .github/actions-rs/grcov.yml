@@ -8,5 +8,4 @@ keep-only:
   - "src/*"
 excl-line: "#\\[(derive(.*)\\]"
 excl-start: "#\\[test\\]"
-excl-start: "#\\[cfg(test)\\]"
 excl-stop: "^\\}$"
