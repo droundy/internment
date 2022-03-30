@@ -7,6 +7,6 @@ output-path: ./lcov.info
 ignore:
   - "/*"
   - "../*"
-excl-br-line: "#\[(derive(.*)\]"
-excl-br-start: "#\[test\]"
-excl-br-stop: "^\}$"
+excl-br-line: "#\\[(derive(.*)\\]"
+excl-br-start: "#\\[test\\]"
+excl-br-stop: "^\\}$"

@@ -433,7 +433,52 @@ mod intern_tests {
         let b: &Option<String> = x.as_ref();
         assert_eq!(b, Intern::<Option<String>>::new(None).deref());
     }
-}
+
+    #[cfg(test)]
+    #[derive(Eq, PartialEq, Hash)]
+    pub struct TestStructCount(String, u64, std::sync::Arc<bool>);
+    
+    #[cfg(test)]
+    #[derive(Eq, PartialEq, Hash)]
+    pub struct TestStruct(String, u64);
+    
+    // Quickly create a small number of interned objects from
+    // multiple threads.
+    #[test]
+    fn multithreading_intern() {
+        use std::thread;
+        let mut thandles = vec![];
+        for _i in 0..10 {
+            thandles.push(thread::spawn(|| {
+                for _i in 0..100_000 {
+                    let _interned1 = Intern::new(TestStruct("foo".to_string(), 5));
+                    let _interned2 = Intern::new(TestStruct("bar".to_string(), 10));
+                }
+            }));
+        }
+        for h in thandles.into_iter() {
+            h.join().unwrap()
+        }
+    }
+    // Quickly create a small number of interned objects from
+    // multiple threads.  This test is faster to run under miri.
+    #[test]
+    fn multithreading_normal_intern() {
+        use std::thread;
+        let mut thandles = vec![];
+        for _i in 0..10 {
+            thandles.push(thread::spawn(|| {
+                for _i in 0..100 {
+                    let _interned1 = Intern::new(TestStruct("normalfoo".to_string(), 5));
+                    let _interned2 = Intern::new(TestStruct("normalbar".to_string(), 10));
+                }
+            }));
+        }
+        for h in thandles.into_iter() {
+            h.join().unwrap()
+        }
+    }
+    }
 
 impl<T: Debug + ?Sized> Debug for Intern<T> {
     fn fmt(&self, f: &mut std::fmt::Formatter) -> Result<(), std::fmt::Error> {
@@ -462,47 +507,3 @@ fn test_intern_num_objects() {
     }
 }
 
-#[cfg(test)]
-#[derive(Eq, PartialEq, Hash)]
-pub struct TestStructCount(String, u64, std::sync::Arc<bool>);
-
-#[cfg(test)]
-#[derive(Eq, PartialEq, Hash)]
-pub struct TestStruct(String, u64);
-
-// Quickly create a small number of interned objects from
-// multiple threads.
-#[test]
-fn multithreading_intern() {
-    use std::thread;
-    let mut thandles = vec![];
-    for _i in 0..10 {
-        thandles.push(thread::spawn(|| {
-            for _i in 0..100_000 {
-                let _interned1 = Intern::new(TestStruct("foo".to_string(), 5));
-                let _interned2 = Intern::new(TestStruct("bar".to_string(), 10));
-            }
-        }));
-    }
-    for h in thandles.into_iter() {
-        h.join().unwrap()
-    }
-}
-// Quickly create a small number of interned objects from
-// multiple threads.  This test is faster to run under miri.
-#[test]
-fn multithreading_normal_intern() {
-    use std::thread;
-    let mut thandles = vec![];
-    for _i in 0..10 {
-        thandles.push(thread::spawn(|| {
-            for _i in 0..100 {
-                let _interned1 = Intern::new(TestStruct("normalfoo".to_string(), 5));
-                let _interned2 = Intern::new(TestStruct("normalbar".to_string(), 10));
-            }
-        }));
-    }
-    for h in thandles.into_iter() {
-        h.join().unwrap()
-    }
-}
