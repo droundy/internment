@@ -433,10 +433,6 @@ mod intern_tests {
 
     #[cfg(test)]
     #[derive(Eq, PartialEq, Hash)]
-    pub struct TestStructCount(String, u64, std::sync::Arc<bool>);
-
-    #[cfg(test)]
-    #[derive(Eq, PartialEq, Hash)]
     pub struct TestStruct(String, u64);
 
     // Quickly create a small number of interned objects from
