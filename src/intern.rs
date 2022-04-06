@@ -163,6 +163,10 @@ fn test_intern_unsized() {
     let boxed_hello: Box::<[u8]> = Box::from(hello_slice);
     assert_eq!(v, boxed_hello.into());
 
+    let goodbye_slice: &[u8] = b"goodbye";
+    let boxed_goodbye: Box::<[u8]> = Box::from(goodbye_slice);
+    assert!(v != boxed_goodbye.into());
+
     let v: Intern<[usize]> = (&[0usize, 1, 2, 3]).into();
     assert_eq!(&*v, &[0, 1, 2, 3]);
     assert_eq!(v, (&[0usize, 1, 2, 3]).into());
@@ -225,6 +229,13 @@ impl<T: Eq + Hash + Send + Sync + 'static + ?Sized> Intern<T> {
     }
 }
 
+#[cfg(feature = "bench")]
+#[test]
+fn test_benchmarking_only_clear_interns() {
+    Intern::<str>::benchmarking_only_clear_interns();
+    assert_eq!(0, Intern::<str>::num_objects_interned());
+}
+
 #[cfg(feature = "tinyset")]
 #[cold]
 fn allocate_ptr() -> *mut usize {
@@ -277,6 +288,8 @@ impl<T: Debug> Fits64 for Intern<T> {
 #[test]
 #[cfg(feature = "tinyset")]
 fn test_intern_set64() {
+    assert_eq!(1, sz::<u8>());
+    assert_eq!(4, sz::<u32>());
     use tinyset::Set64;
     let mut s = Set64::<Intern<u32>>::new();
     s.insert(Intern::new(5));
@@ -287,6 +300,9 @@ fn test_intern_set64() {
     assert!(s.contains(Intern::new(6)));
     assert!(s.contains(Intern::new(7)));
     assert!(!s.contains(Intern::new(8)));
+    for x in s.iter() {
+        assert!([5,6,7,8].contains(&x));
+    }
     assert_eq!(s.len(), 3);
 }
 
