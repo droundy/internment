@@ -159,6 +159,9 @@ fn test_intern_unsized() {
     let v: Intern<[u8]> = b"hello".into();
     assert_eq!(&*v, b"hello");
     assert_eq!(v, b"hello".into());
+    let hello_slice: &[u8] = b"hello";
+    let boxed_hello: Box::<[u8]> = Box::from(hello_slice);
+    assert_eq!(v, boxed_hello.into());
 
     let v: Intern<[usize]> = (&[0usize, 1, 2, 3]).into();
     assert_eq!(&*v, &[0, 1, 2, 3]);
