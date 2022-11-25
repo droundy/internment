@@ -97,7 +97,7 @@ impl<T: Eq + Hash + Send + Sync + 'static> ArcIntern<T> {
     fn get_pointer(&self) -> *const RefCount<T> {
         self.pointer.as_ptr()
     }
-    fn get_container() -> Untyped {
+    fn get_container() -> &'static Container<T> {
         use once_cell::sync::OnceCell;
         static ARC_CONTAINERS: OnceCell<DashMap<TypeId, Untyped, RandomState>> = OnceCell::new();
         let type_map = ARC_CONTAINERS.get_or_init(|| DashMap::with_hasher(RandomState::new()));
@@ -110,7 +110,7 @@ impl<T: Eq + Hash + Send + Sync + 'static> ArcIntern<T> {
                 .or_insert_with(|| Box::leak(Box::new(Container::<T>::with_hasher(RandomState::new()))))
                 .downgrade()
         };
-        *boxed
+        (*boxed).downcast_ref().unwrap()
     }
     /// Intern a value.  If this value has not previously been
     /// interned, then `new` will allocate a spot for the value on the
@@ -121,8 +121,7 @@ impl<T: Eq + Hash + Send + Sync + 'static> ArcIntern<T> {
     /// a `DashMap` which is protected by internal sharded locks.
     pub fn new(mut val: T) -> ArcIntern<T> {
         loop {
-            let c = Self::get_container();
-            let m = c.downcast_ref::<Container<T>>().unwrap();
+            let m = Self::get_container();
             if let Some(b) = m.get_mut(&val) {
                 let b = b.key();
                 // First increment the count.  We are holding the write mutex here.
@@ -181,10 +180,7 @@ impl<T: Eq + Hash + Send + Sync + 'static> ArcIntern<T> {
     /// See how many objects have been interned.  This may be helpful
     /// in analyzing memory use.
     pub fn num_objects_interned() -> usize {
-        let c = Self::get_container();
-        c.downcast_ref::<Container<T>>()
-            .map(|m| m.len())
-            .unwrap_or(0)
+        Self::get_container().len()
     }
     /// Return the number of counts for this pointer.
     pub fn refcount(&self) -> usize {
@@ -244,8 +240,7 @@ impl<T: Eq + Hash + Send + Sync> Drop for ArcIntern<T> {
             // dropped *before* the removed content is dropped, since it
             // might need to lock the mutex.
             let _remove;
-            let c = Self::get_container();
-            let m = c.downcast_ref::<Container<T>>().unwrap();
+            let m = Self::get_container();
             _remove = m.remove(unsafe { self.pointer.as_ref() });
         }
     }
