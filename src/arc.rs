@@ -2,7 +2,7 @@
 use ahash::RandomState;
 use std::fmt::{Debug, Display, Pointer};
 type Container<T> = DashMap<BoxRefCount<T>, (), RandomState>;
-type Untyped = Box<(dyn Any + Send + Sync + 'static)>;
+type Untyped = &'static (dyn Any + Send + Sync + 'static);
 use std::borrow::Borrow;
 use std::convert::AsRef;
 use std::hash::{Hash, Hasher};
@@ -97,7 +97,7 @@ impl<T: Eq + Hash + Send + Sync + 'static> ArcIntern<T> {
     fn get_pointer(&self) -> *const RefCount<T> {
         self.pointer.as_ptr()
     }
-    fn get_container() -> dashmap::mapref::one::Ref<'static, TypeId, Untyped, RandomState> {
+    fn get_container() -> Untyped {
         use once_cell::sync::OnceCell;
         static ARC_CONTAINERS: OnceCell<DashMap<TypeId, Untyped, RandomState>> = OnceCell::new();
         let type_map = ARC_CONTAINERS.get_or_init(|| DashMap::with_hasher(RandomState::new()));
@@ -107,10 +107,10 @@ impl<T: Eq + Hash + Send + Sync + 'static> ArcIntern<T> {
         } else {
             type_map
                 .entry(TypeId::of::<T>())
-                .or_insert_with(|| Box::new(Container::<T>::with_hasher(RandomState::new())))
+                .or_insert_with(|| Box::leak(Box::new(Container::<T>::with_hasher(RandomState::new()))))
                 .downgrade()
         };
-        boxed
+        *boxed
     }
     /// Intern a value.  If this value has not previously been
     /// interned, then `new` will allocate a spot for the value on the
