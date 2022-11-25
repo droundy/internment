@@ -181,7 +181,7 @@ impl Arena<std::ffi::CStr> {
     }
 }
 impl Arena<std::ffi::OsStr> {
-    /// Intern a `&OsStr` as `ArenaIntern<OsStr>.
+    /// Intern a `&OsStr` as `ArenaIntern<OsStr>`.
     /// 
     /// If this value has not previously been interned, then `intern` will
     /// allocate a spot for the value on the heap.  Otherwise, it will return a
