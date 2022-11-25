@@ -2,7 +2,6 @@
 use ahash::RandomState;
 use std::any::{Any, TypeId};
 use std::fmt::{Debug, Display, Pointer};
-use std::any::{Any, TypeId};
 type Container<T> = DashMap<BoxRefCount<T>, (), RandomState>;
 type Untyped = &'static (dyn Any + Send + Sync + 'static);
 use std::borrow::Borrow;
@@ -107,6 +106,25 @@ impl<T: ?Sized + Eq + Hash + Send + Sync + 'static> ArcIntern<T> {
     pub(crate) fn get_container() -> &'static Container<T> {
         use once_cell::sync::OnceCell;
         static ARC_CONTAINERS: OnceCell<DashMap<TypeId, Untyped, RandomState>> = OnceCell::new();
+
+        // make some shortcuts to speed up get_container.
+        macro_rules! common_containers {
+            ($($t:ty),*) => {
+                $(
+                // hopefully this will be optimized away by compiler for types that are not matched.
+                // for matched types, this completely avoids the need to look up dashmap.
+                if TypeId::of::<T>() == TypeId::of::<$t>() {
+                    static CONTAINER: OnceCell<Container<$t>> = OnceCell::new();
+                    let c: &'static Container<$t> = CONTAINER.get_or_init(|| Container::with_hasher(RandomState::new()));
+                    // SAFETY: we just compared to make sure `T` == `$t`.
+                    // This converts Container<$t> to Container<T> to make the compiler happy.
+                    return unsafe { &*((c as *const Container<$t>).cast::<Container<T>>()) };
+                }
+                )*
+            };
+        }
+        common_containers!(str, String);
+
         let type_map = ARC_CONTAINERS.get_or_init(|| DashMap::with_hasher(RandomState::new()));
         // Prefer taking the read lock to reduce contention, only use entry api if necessary.
         let boxed = if let Some(boxed) = type_map.get(&TypeId::of::<T>()) {
