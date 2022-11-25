@@ -189,7 +189,7 @@ impl Arena<std::ffi::OsStr> {
     pub fn intern<'a, 'b>(&'a self, val: &'b std::ffi::OsStr) -> ArenaIntern<'a, std::ffi::OsStr> {
         self.intern_ref(val)
     }
-    /// Intern a `OsString` as `ArenaIntern<OsStr>.
+    /// Intern a `OsString` as `ArenaIntern<OsStr>`.
     /// 
     /// If this value has not previously been interned, then `intern` will save
     /// the provided `OsString`.  Otherwise, it will free its input `OsString` and
@@ -197,7 +197,7 @@ impl Arena<std::ffi::OsStr> {
     pub fn intern_osstring(&self, val: std::ffi::OsString) -> ArenaIntern<std::ffi::OsStr> {
         self.intern_from_owned(val)
     }
-    /// Intern a `Box<OsStr>` as `ArenaIntern<OsStr>.
+    /// Intern a `Box<OsStr>` as `ArenaIntern<OsStr>`.
     /// 
     /// If this value has not previously been interned, then `intern` will save
     /// the provided `Box<CSr>`.  Otherwise, it will free its input `Box<OsStr>`
@@ -207,7 +207,7 @@ impl Arena<std::ffi::OsStr> {
     }
 }
 impl Arena<std::path::Path> {
-    /// Intern a `&Path` as `ArenaIntern<Path>.
+    /// Intern a `&Path` as `ArenaIntern<Path>`.
     /// 
     /// If this value has not previously been interned, then `intern` will
     /// allocate a spot for the value on the heap.  Otherwise, it will return a
@@ -215,7 +215,7 @@ impl Arena<std::path::Path> {
     pub fn intern<'a, 'b>(&'a self, val: &'b std::path::Path) -> ArenaIntern<'a, std::path::Path> {
         self.intern_ref(val)
     }
-    /// Intern a `PathBuf` as `ArenaIntern<Path>.
+    /// Intern a `PathBuf` as `ArenaIntern<Path>`.
     /// 
     /// If this value has not previously been interned, then `intern` will save
     /// the provided `PathBuf`.  Otherwise, it will free its input `PathBuf` and
@@ -223,7 +223,7 @@ impl Arena<std::path::Path> {
     pub fn intern_pathbuf(&self, val: std::path::PathBuf) -> ArenaIntern<std::path::Path> {
         self.intern_from_owned(val)
     }
-    /// Intern a `Box<Path>` as `ArenaIntern<Path>.
+    /// Intern a `Box<Path>` as `ArenaIntern<Path>`.
     /// 
     /// If this value has not previously been interned, then `intern` will save
     /// the provided `Box<CSr>`.  Otherwise, it will free its input `Box<Path>`
@@ -233,7 +233,7 @@ impl Arena<std::path::Path> {
     }
 }
 impl<T: Eq + Hash + Copy> Arena<[T]> {
-    /// Intern a `&\[T\]` as `ArenaIntern<\[T\]>.
+    /// Intern a `&\[T\]` as `ArenaIntern<[T]>`.
     /// 
     /// If this value has not previously been interned, then `intern` will
     /// allocate a spot for the value on the heap.  Otherwise, it will return a
@@ -241,7 +241,7 @@ impl<T: Eq + Hash + Copy> Arena<[T]> {
     pub fn intern<'a, 'b>(&'a self, val: &'b [T]) -> ArenaIntern<'a, [T]> {
         self.intern_ref(val)
     }
-    /// Intern a `Vec<T>` as `ArenaIntern<\[T\]>.
+    /// Intern a `Vec<T>` as `ArenaIntern<[T]>`.
     /// 
     /// If this value has not previously been interned, then `intern` will save
     /// the provided `Vec<T>`.  Otherwise, it will free its input `Vec<T>` and
@@ -249,7 +249,7 @@ impl<T: Eq + Hash + Copy> Arena<[T]> {
     pub fn intern_vec(&self, val: Vec<T>) -> ArenaIntern<[T]> {
         self.intern_from_owned(val)
     }
-    /// Intern a `Box<[T]>` as `ArenaIntern<\[T\]>.
+    /// Intern a `Box<[T]>` as `ArenaIntern<[T]>`.
     /// 
     /// If this value has not previously been interned, then `intern` will save
     /// the provided `Box<CSr>`.  Otherwise, it will free its input `Box<[T]>`
@@ -259,7 +259,7 @@ impl<T: Eq + Hash + Copy> Arena<[T]> {
     }
 }
 impl<T: Eq + Hash + ?Sized> Arena<T> {
-    /// Intern a reference to a type that can be converted into a `Box<T>` as `ArenaIntern<T>.
+    /// Intern a reference to a type that can be converted into a `Box<T>` as `ArenaIntern<T>`.
     pub fn intern_from<'a, 'b, I>(&'a self, val: &'b I) -> ArenaIntern<'a, T>
     where
         T: 'a + Borrow<I> + From<&'b I>,
