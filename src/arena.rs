@@ -129,7 +129,7 @@ impl<T: Eq + Hash + ?Sized> Arena<T> {
     }
 }
 impl Arena<str> {
-    /// Intern a `&str` as `ArenaIntern<str>.
+    /// Intern a `&str` as `ArenaIntern<str>`.
     /// 
     /// If this value has not previously been interned, then `intern` will
     /// allocate a spot for the value on the heap.  Otherwise, it will return a
@@ -137,7 +137,7 @@ impl Arena<str> {
     pub fn intern<'a, 'b>(&'a self, val: &'b str) -> ArenaIntern<'a, str> {
         self.intern_ref(val)
     }
-    /// Intern a `String` as `ArenaIntern<str>.
+    /// Intern a `String` as `ArenaIntern<str>`.
     /// 
     /// If this value has not previously been interned, then `intern` will save
     /// the provided `String`.  Otherwise, it will free its input `String` and
@@ -145,7 +145,7 @@ impl Arena<str> {
     pub fn intern_string(&self, val: String) -> ArenaIntern<str> {
         self.intern_from_owned(val)
     }
-    /// Intern a `Box<str>` as `ArenaIntern<str>.
+    /// Intern a `Box<str>` as `ArenaIntern<str>`.
     /// 
     /// If this value has not previously been interned, then `intern` will save
     /// the provided `Box<str>`.  Otherwise, it will free its input `Box<str>`
@@ -155,7 +155,7 @@ impl Arena<str> {
     }
 }
 impl Arena<std::ffi::CStr> {
-    /// Intern a `&CStr` as `ArenaIntern<CStr>.
+    /// Intern a `&CStr` as `ArenaIntern<CStr>`.
     /// 
     /// If this value has not previously been interned, then `intern` will
     /// allocate a spot for the value on the heap.  Otherwise, it will return a
@@ -163,7 +163,7 @@ impl Arena<std::ffi::CStr> {
     pub fn intern<'a, 'b>(&'a self, val: &'b std::ffi::CStr) -> ArenaIntern<'a, std::ffi::CStr> {
         self.intern_ref(val)
     }
-    /// Intern a `CString` as `ArenaIntern<CStr>.
+    /// Intern a `CString` as `ArenaIntern<CStr>`.
     /// 
     /// If this value has not previously been interned, then `intern` will save
     /// the provided `CString`.  Otherwise, it will free its input `CString` and
@@ -171,7 +171,7 @@ impl Arena<std::ffi::CStr> {
     pub fn intern_cstring(&self, val: std::ffi::CString) -> ArenaIntern<std::ffi::CStr> {
         self.intern_from_owned(val)
     }
-    /// Intern a `Box<CStr>` as `ArenaIntern<CStr>.
+    /// Intern a `Box<CStr>` as `ArenaIntern<CStr>`.
     /// 
     /// If this value has not previously been interned, then `intern` will save
     /// the provided `Box<CSr>`.  Otherwise, it will free its input `Box<CStr>`
