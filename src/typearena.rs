@@ -76,11 +76,11 @@ where
 
 use super::boxedset;
 use boxedset::HashSet;
+use parking_lot::Mutex;
 use std::borrow::Borrow;
 use std::convert::AsRef;
 use std::fmt::{Debug, Display, Pointer};
 use std::ops::Deref;
-use parking_lot::Mutex;
 
 #[cfg(feature = "serde")]
 use serde::{Deserialize, Deserializer, Serialize, Serializer};

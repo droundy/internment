@@ -1,10 +1,8 @@
-
 #[cfg(feature = "bench")]
 use internment::{ArcIntern, Intern};
 
 #[cfg(not(feature = "bench"))]
 fn main() {}
-
 
 #[cfg(feature = "bench")]
 fn main() {

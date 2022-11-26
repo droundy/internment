@@ -68,8 +68,13 @@ impl<T: Hash> Hash for RefCount<T> {
     }
 }
 
-#[derive(Eq, PartialEq, Hash)]
+#[derive(Eq, PartialEq)]
 struct BoxRefCount<T>(Box<RefCount<T>>);
+impl<T: Hash> Hash for BoxRefCount<T> {
+    fn hash<H: Hasher>(&self, hasher: &mut H) {
+        self.0.data.hash(hasher)
+    }
+}
 
 impl<T> BoxRefCount<T> {
     fn into_inner(self) -> T {
@@ -107,7 +112,9 @@ impl<T: Eq + Hash + Send + Sync + 'static> ArcIntern<T> {
         } else {
             type_map
                 .entry(TypeId::of::<T>())
-                .or_insert_with(|| Box::leak(Box::new(Container::<T>::with_hasher(RandomState::new()))))
+                .or_insert_with(|| {
+                    Box::leak(Box::new(Container::<T>::with_hasher(RandomState::new())))
+                })
                 .downgrade()
         };
         (*boxed).downcast_ref().unwrap()
@@ -489,4 +496,20 @@ fn like_doctest_arcintern() {
     assert_eq!(x, ArcIntern::from_ref("hello"));
     assert_eq!(y, ArcIntern::from_ref("world"));
     assert_eq!(&*x, "hello"); // dereference a Intern like a pointer\
+}
+
+/// This function illustrates that dashmap has a failure under miri
+/// 
+/// This prevents us from using miri to validate our unsafe code.
+#[test]
+fn just_dashmap() {
+    let m: DashMap<Box<&'static str>, ()> = DashMap::new();
+    match m.entry(Box::new("hello")) {
+        Entry::Vacant(e) => {
+            e.insert(());
+        }
+        Entry::Occupied(_) => {
+            panic!("Should not exist yet");
+        }
+    };
 }

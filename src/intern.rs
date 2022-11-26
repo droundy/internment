@@ -160,11 +160,11 @@ fn test_intern_unsized() {
     assert_eq!(&*v, b"hello");
     assert_eq!(v, b"hello".into());
     let hello_slice: &[u8] = b"hello";
-    let boxed_hello: Box::<[u8]> = Box::from(hello_slice);
+    let boxed_hello: Box<[u8]> = Box::from(hello_slice);
     assert_eq!(v, boxed_hello.into());
 
     let goodbye_slice: &[u8] = b"goodbye";
-    let boxed_goodbye: Box::<[u8]> = Box::from(goodbye_slice);
+    let boxed_goodbye: Box<[u8]> = Box::from(goodbye_slice);
     assert!(v != boxed_goodbye.into());
 
     let v: Intern<[usize]> = (&[0usize, 1, 2, 3]).into();
@@ -301,7 +301,7 @@ fn test_intern_set64() {
     assert!(s.contains(Intern::new(7)));
     assert!(!s.contains(Intern::new(8)));
     for x in s.iter() {
-        assert!([5,6,7,8].contains(&x));
+        assert!([5, 6, 7, 8].contains(&x));
     }
     assert_eq!(s.len(), 3);
 }

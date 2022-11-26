@@ -5,11 +5,11 @@ use std::borrow::Borrow;
 use std::hash::{Hash, Hasher};
 
 /// A arena for storing interned data
-/// 
+///
 /// You can use an `Arena<T>` to intern data of type `T`.  This data is then
 /// freed when the `Arena` is dropped.  An arena can hold some kinds of `!Sized`
 /// data, such as `str`.
-/// 
+///
 /// # Example
 /// ```
 /// let arena = internment::Arena::<str>::new();
@@ -26,7 +26,7 @@ use std::hash::{Hash, Hasher};
 /// assert_eq!(y, z);
 /// assert!(x != z);
 /// ```
-/// 
+///
 /// # Another example
 /// ```rust
 /// use internment::Arena;
@@ -66,7 +66,7 @@ impl<T: ?Sized> Arena<T> {
 }
 impl<T: Eq + Hash> Arena<T> {
     /// Intern a value.
-    /// 
+    ///
     /// If this value has not previously been interned, then `intern` will
     /// allocate a spot for the value on the heap.  Otherwise, it will return a
     /// pointer to the object previously allocated.
@@ -130,7 +130,7 @@ impl<T: Eq + Hash + ?Sized> Arena<T> {
 }
 impl Arena<str> {
     /// Intern a `&str` as `ArenaIntern<str>`.
-    /// 
+    ///
     /// If this value has not previously been interned, then `intern` will
     /// allocate a spot for the value on the heap.  Otherwise, it will return a
     /// pointer to the `str` previously allocated.
@@ -138,7 +138,7 @@ impl Arena<str> {
         self.intern_ref(val)
     }
     /// Intern a `String` as `ArenaIntern<str>`.
-    /// 
+    ///
     /// If this value has not previously been interned, then `intern` will save
     /// the provided `String`.  Otherwise, it will free its input `String` and
     /// return a pointer to the `str` previously saved.
@@ -146,7 +146,7 @@ impl Arena<str> {
         self.intern_from_owned(val)
     }
     /// Intern a `Box<str>` as `ArenaIntern<str>`.
-    /// 
+    ///
     /// If this value has not previously been interned, then `intern` will save
     /// the provided `Box<str>`.  Otherwise, it will free its input `Box<str>`
     /// and return a pointer to the `str` previously saved.
@@ -156,7 +156,7 @@ impl Arena<str> {
 }
 impl Arena<std::ffi::CStr> {
     /// Intern a `&CStr` as `ArenaIntern<CStr>`.
-    /// 
+    ///
     /// If this value has not previously been interned, then `intern` will
     /// allocate a spot for the value on the heap.  Otherwise, it will return a
     /// pointer to the `CStr` previously allocated.
@@ -164,7 +164,7 @@ impl Arena<std::ffi::CStr> {
         self.intern_ref(val)
     }
     /// Intern a `CString` as `ArenaIntern<CStr>`.
-    /// 
+    ///
     /// If this value has not previously been interned, then `intern` will save
     /// the provided `CString`.  Otherwise, it will free its input `CString` and
     /// return a pointer to the `CStr` previously saved.
@@ -172,7 +172,7 @@ impl Arena<std::ffi::CStr> {
         self.intern_from_owned(val)
     }
     /// Intern a `Box<CStr>` as `ArenaIntern<CStr>`.
-    /// 
+    ///
     /// If this value has not previously been interned, then `intern` will save
     /// the provided `Box<CSr>`.  Otherwise, it will free its input `Box<CStr>`
     /// and return a pointer to the `CStr` previously saved.
@@ -182,7 +182,7 @@ impl Arena<std::ffi::CStr> {
 }
 impl Arena<std::ffi::OsStr> {
     /// Intern a `&OsStr` as `ArenaIntern<OsStr>`.
-    /// 
+    ///
     /// If this value has not previously been interned, then `intern` will
     /// allocate a spot for the value on the heap.  Otherwise, it will return a
     /// pointer to the `OsStr` previously allocated.
@@ -190,7 +190,7 @@ impl Arena<std::ffi::OsStr> {
         self.intern_ref(val)
     }
     /// Intern a `OsString` as `ArenaIntern<OsStr>`.
-    /// 
+    ///
     /// If this value has not previously been interned, then `intern` will save
     /// the provided `OsString`.  Otherwise, it will free its input `OsString` and
     /// return a pointer to the `OsStr` previously saved.
@@ -198,7 +198,7 @@ impl Arena<std::ffi::OsStr> {
         self.intern_from_owned(val)
     }
     /// Intern a `Box<OsStr>` as `ArenaIntern<OsStr>`.
-    /// 
+    ///
     /// If this value has not previously been interned, then `intern` will save
     /// the provided `Box<CSr>`.  Otherwise, it will free its input `Box<OsStr>`
     /// and return a pointer to the `OsStr` previously saved.
@@ -208,7 +208,7 @@ impl Arena<std::ffi::OsStr> {
 }
 impl Arena<std::path::Path> {
     /// Intern a `&Path` as `ArenaIntern<Path>`.
-    /// 
+    ///
     /// If this value has not previously been interned, then `intern` will
     /// allocate a spot for the value on the heap.  Otherwise, it will return a
     /// pointer to the `Path` previously allocated.
@@ -216,7 +216,7 @@ impl Arena<std::path::Path> {
         self.intern_ref(val)
     }
     /// Intern a `PathBuf` as `ArenaIntern<Path>`.
-    /// 
+    ///
     /// If this value has not previously been interned, then `intern` will save
     /// the provided `PathBuf`.  Otherwise, it will free its input `PathBuf` and
     /// return a pointer to the `Path` previously saved.
@@ -224,7 +224,7 @@ impl Arena<std::path::Path> {
         self.intern_from_owned(val)
     }
     /// Intern a `Box<Path>` as `ArenaIntern<Path>`.
-    /// 
+    ///
     /// If this value has not previously been interned, then `intern` will save
     /// the provided `Box<CSr>`.  Otherwise, it will free its input `Box<Path>`
     /// and return a pointer to the `Path` previously saved.
@@ -234,7 +234,7 @@ impl Arena<std::path::Path> {
 }
 impl<T: Eq + Hash + Copy> Arena<[T]> {
     /// Intern a `&\[T\]` as `ArenaIntern<[T]>`.
-    /// 
+    ///
     /// If this value has not previously been interned, then `intern` will
     /// allocate a spot for the value on the heap.  Otherwise, it will return a
     /// pointer to the `\[T\]` previously allocated.
@@ -242,7 +242,7 @@ impl<T: Eq + Hash + Copy> Arena<[T]> {
         self.intern_ref(val)
     }
     /// Intern a `Vec<T>` as `ArenaIntern<[T]>`.
-    /// 
+    ///
     /// If this value has not previously been interned, then `intern` will save
     /// the provided `Vec<T>`.  Otherwise, it will free its input `Vec<T>` and
     /// return a pointer to the `[T]` previously saved.
@@ -250,7 +250,7 @@ impl<T: Eq + Hash + Copy> Arena<[T]> {
         self.intern_from_owned(val)
     }
     /// Intern a `Box<[T]>` as `ArenaIntern<[T]>`.
-    /// 
+    ///
     /// If this value has not previously been interned, then `intern` will save
     /// the provided `Box<CSr>`.  Otherwise, it will free its input `Box<[T]>`
     /// and return a pointer to the `[T]` previously saved.

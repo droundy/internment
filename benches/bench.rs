@@ -4,7 +4,7 @@ use scaling::{bench, bench_gen_env};
 use std::collections::HashSet;
 
 #[cfg(feature = "bench")]
-use internment::{ArcIntern, Intern, Arena, NewIntern};
+use internment::{ArcIntern, Arena, Intern, NewIntern};
 
 #[cfg(not(feature = "bench"))]
 fn main() {
@@ -18,7 +18,7 @@ macro_rules! four_types {
         $intern::<usize>::benchmarking_only_clear_interns();
         $intern::<(usize, usize)>::benchmarking_only_clear_interns();
         $intern::<(usize, usize, usize)>::benchmarking_only_clear_interns();
-    
+
         let mut interned_strings = Vec::new();
         let mut interned_ints = Vec::new();
         let mut interned_pairs = Vec::new();
@@ -55,7 +55,7 @@ macro_rules! same_arrays {
         $intern::<[usize; 80]>::benchmarking_only_clear_interns();
         $intern::<[usize; 90]>::benchmarking_only_clear_interns();
         $intern::<[usize; 100]>::benchmarking_only_clear_interns();
-    
+
         let mut size = $i;
         for _ in 0..100000 {
             size = (size * 75 + 74) % ((1 << 16) + 1);
@@ -108,40 +108,40 @@ macro_rules! different_arrays {
         $intern::<[usize; 80]>::benchmarking_only_clear_interns();
         $intern::<[usize; 90]>::benchmarking_only_clear_interns();
         $intern::<[usize; 100]>::benchmarking_only_clear_interns();
-    
+
         let mut size = $i;
         for _ in 0..100000 {
             size = (size * 75 + 74) % ((1 << 16) + 1);
             match size % 10 {
                 0 => {
-                    $intern::new([size+$i; 1000]);
+                    $intern::new([size + $i; 1000]);
                 }
                 1 => {
-                    $intern::new([size+$i; 20]);
+                    $intern::new([size + $i; 20]);
                 }
                 2 => {
-                    $intern::new([size+$i; 30]);
+                    $intern::new([size + $i; 30]);
                 }
                 3 => {
-                    $intern::new([size+$i; 40]);
+                    $intern::new([size + $i; 40]);
                 }
                 4 => {
-                    $intern::new([size+$i; 50]);
+                    $intern::new([size + $i; 50]);
                 }
                 5 => {
-                    $intern::new([size+$i; 60]);
+                    $intern::new([size + $i; 60]);
                 }
                 6 => {
-                    $intern::new([size+$i; 70]);
+                    $intern::new([size + $i; 70]);
                 }
                 7 => {
-                    $intern::new([size+$i; 80]);
+                    $intern::new([size + $i; 80]);
                 }
                 8 => {
-                    $intern::new([size+$i; 90]);
+                    $intern::new([size + $i; 90]);
                 }
                 _ => {
-                    $intern::new([size+$i; 100]);
+                    $intern::new([size + $i; 100]);
                 }
             }
         }
@@ -152,7 +152,7 @@ macro_rules! different_arrays {
 macro_rules! strings {
     ($intern:ident, $i:expr) => {
         $intern::<String>::benchmarking_only_clear_interns();
-    
+
         let mut interned_strings = Vec::new();
         for n in 0..100000 {
             interned_strings.push($intern::new(format!("i {} and n {}", $i, n)));
@@ -164,7 +164,7 @@ macro_rules! strings {
 macro_rules! arena_strings {
     ($intern:ident, $i:expr) => {
         let arena: Arena<String> = Arena::new();
-        
+
         let mut interned_strings = Vec::new();
         for n in 0..100000 {
             interned_strings.push(arena.intern(format!("i {} and n {}", $i, n)));
@@ -176,10 +176,12 @@ macro_rules! arena_strings {
 macro_rules! few_strings {
     ($intern:ident, $i:expr) => {
         $intern::<String>::benchmarking_only_clear_interns();
-    
+
         let mut interned_strings = Vec::new();
         for n in 0..100000 {
-            interned_strings.push($intern::new(memorable_wordlist::WORDS[($i + n) % 10].to_string()));
+            interned_strings.push($intern::new(
+                memorable_wordlist::WORDS[($i + n) % 10].to_string(),
+            ));
         }
     };
 }
@@ -188,7 +190,7 @@ macro_rules! few_strings {
 macro_rules! few_str_from {
     ($intern:ident, $i:expr) => {
         $intern::<str>::benchmarking_only_clear_interns();
-    
+
         let mut interned_strings: Vec<$intern<str>> = Vec::new();
         for n in 0..100000 {
             let i: $intern<str> = From::from(memorable_wordlist::WORDS[($i + n) % 10]);
@@ -201,7 +203,7 @@ macro_rules! few_str_from {
 macro_rules! few_strings_from {
     ($intern:ident, $i:expr) => {
         $intern::<String>::benchmarking_only_clear_interns();
-    
+
         let mut interned_strings: Vec<$intern<String>> = Vec::new();
         for n in 0..100000 {
             interned_strings.push($intern::from_ref(memorable_wordlist::WORDS[($i + n) % 10]));
@@ -213,10 +215,11 @@ macro_rules! few_strings_from {
 macro_rules! arena_few_strings {
     ($intern:ident, $i:expr) => {
         let arena: Arena<String> = Arena::new();
-        
+
         let mut interned_strings: Vec<internment::ArenaIntern<String>> = Vec::new();
         for n in 0..100000 {
-            interned_strings.push(arena.intern(memorable_wordlist::WORDS[($i + n) % 10].to_string()));
+            interned_strings
+                .push(arena.intern(memorable_wordlist::WORDS[($i + n) % 10].to_string()));
         }
     };
 }
@@ -225,10 +228,12 @@ macro_rules! arena_few_strings {
 macro_rules! static_str {
     ($intern:ident, $i:expr) => {
         $intern::<&'static str>::benchmarking_only_clear_interns();
-    
+
         let mut interned = Vec::new();
         for n in 0..100000 {
-            interned.push($intern::new(memorable_wordlist::WORDS[($i + n) % memorable_wordlist::WORDS.len()]));
+            interned.push($intern::new(
+                memorable_wordlist::WORDS[($i + n) % memorable_wordlist::WORDS.len()],
+            ));
         }
     };
 }
@@ -236,10 +241,12 @@ macro_rules! static_str {
 macro_rules! arena_static_str {
     ($intern:ident, $i:expr) => {
         let arena: Arena<&'static str> = Arena::new();
-        
+
         let mut interned = Vec::new();
         for n in 0..100000 {
-            interned.push(arena.intern(memorable_wordlist::WORDS[($i + n) % memorable_wordlist::WORDS.len()]));
+            interned.push(
+                arena.intern(memorable_wordlist::WORDS[($i + n) % memorable_wordlist::WORDS.len()]),
+            );
         }
     };
 }
@@ -250,7 +257,9 @@ macro_rules! contended {
         bench(|| {
             let mut handles: Vec<std::thread::JoinHandle<()>> = Vec::new();
             for i in 0..50 {
-                handles.push(std::thread::spawn(move || { $mac!($intern, i); }));
+                handles.push(std::thread::spawn(move || {
+                    $mac!($intern, i);
+                }));
             }
             for h in handles {
                 h.join().unwrap();
@@ -270,66 +279,206 @@ macro_rules! uncontended {
     };
 }
 
-
 #[cfg(feature = "bench")]
 fn main() {
-    println!("  Contended &'static str Intern {}",      contended!(Intern, static_str));
-    println!("Uncontended &'static str Intern {}",    uncontended!(Intern, static_str));
-    println!("  Contended &'stati.. NewIntern {}",      contended!(NewIntern, static_str));
-    println!("Uncontended &'stati.. NewIntern {}",    uncontended!(NewIntern, static_str));
-    println!("  Contended &'stat... ArcIntern {}",   contended!(ArcIntern, static_str));
-    println!("Uncontended &'stat... ArcIntern {}", uncontended!(ArcIntern, static_str));
-    println!("Uncontended &'st... ArenaIntern {}", uncontended!(ArenaIntern, arena_static_str));
+    println!(
+        "  Contended &'static str Intern {}",
+        contended!(Intern, static_str)
+    );
+    println!(
+        "Uncontended &'static str Intern {}",
+        uncontended!(Intern, static_str)
+    );
+    println!(
+        "  Contended &'stati.. NewIntern {}",
+        contended!(NewIntern, static_str)
+    );
+    println!(
+        "Uncontended &'stati.. NewIntern {}",
+        uncontended!(NewIntern, static_str)
+    );
+    println!(
+        "  Contended &'stat... ArcIntern {}",
+        contended!(ArcIntern, static_str)
+    );
+    println!(
+        "Uncontended &'stat... ArcIntern {}",
+        uncontended!(ArcIntern, static_str)
+    );
+    println!(
+        "Uncontended &'st... ArenaIntern {}",
+        uncontended!(ArenaIntern, arena_static_str)
+    );
     println!("\n");
 
-    println!("  Contended few Strings Intern {}",      contended!(Intern, few_strings));
-    println!("Uncontended few Strings Intern {}",    uncontended!(Intern, few_strings));
-    println!("  Contended few S... NewIntern {}",   contended!(NewIntern, few_strings));
-    println!("Uncontended few S... NewIntern {}", uncontended!(NewIntern, few_strings));
-    println!("  Contended few S... ArcIntern {}",   contended!(ArcIntern, few_strings));
-    println!("Uncontended few S... ArcIntern {}", uncontended!(ArcIntern, few_strings));
-    println!("Uncontended few S..ArenaIntern {}", uncontended!(ArcIntern, arena_few_strings));
-    println!("  Contended few Strings Intern::from {}",      contended!(Intern, few_strings_from));
-    println!("Uncontended few Strings Intern::from {}",    uncontended!(Intern, few_strings_from));
-    println!("  Contended few S... ArcIntern::from {}",   contended!(ArcIntern, few_strings_from));
-    println!("Uncontended few S... ArcIntern::from {}", uncontended!(ArcIntern, few_strings_from));
-    println!("  Contended few str. Intern::from {}",   contended!(Intern, few_str_from));
-    println!("Uncontended few str. Intern::from {}", uncontended!(Intern, few_str_from));
-    println!("  Contended few str. NewIntern::from {}",   contended!(NewIntern, few_str_from));
-    println!("Uncontended few str. NewIntern::from {}", uncontended!(NewIntern, few_str_from));
+    println!(
+        "  Contended few Strings Intern {}",
+        contended!(Intern, few_strings)
+    );
+    println!(
+        "Uncontended few Strings Intern {}",
+        uncontended!(Intern, few_strings)
+    );
+    println!(
+        "  Contended few S... NewIntern {}",
+        contended!(NewIntern, few_strings)
+    );
+    println!(
+        "Uncontended few S... NewIntern {}",
+        uncontended!(NewIntern, few_strings)
+    );
+    println!(
+        "  Contended few S... ArcIntern {}",
+        contended!(ArcIntern, few_strings)
+    );
+    println!(
+        "Uncontended few S... ArcIntern {}",
+        uncontended!(ArcIntern, few_strings)
+    );
+    println!(
+        "Uncontended few S..ArenaIntern {}",
+        uncontended!(ArcIntern, arena_few_strings)
+    );
+    println!(
+        "  Contended few Strings Intern::from {}",
+        contended!(Intern, few_strings_from)
+    );
+    println!(
+        "Uncontended few Strings Intern::from {}",
+        uncontended!(Intern, few_strings_from)
+    );
+    println!(
+        "  Contended few S... ArcIntern::from {}",
+        contended!(ArcIntern, few_strings_from)
+    );
+    println!(
+        "Uncontended few S... ArcIntern::from {}",
+        uncontended!(ArcIntern, few_strings_from)
+    );
+    println!(
+        "  Contended few str. Intern::from {}",
+        contended!(Intern, few_str_from)
+    );
+    println!(
+        "Uncontended few str. Intern::from {}",
+        uncontended!(Intern, few_str_from)
+    );
+    println!(
+        "  Contended few str. NewIntern::from {}",
+        contended!(NewIntern, few_str_from)
+    );
+    println!(
+        "Uncontended few str. NewIntern::from {}",
+        uncontended!(NewIntern, few_str_from)
+    );
     println!("\n");
 
-    println!("  Contended unique Strings Intern {}",      contended!(Intern, strings));
-    println!("Uncontended unique Strings Intern {}",    uncontended!(Intern, strings));
-    println!("  Contended unique S... NewIntern {}",   contended!(NewIntern, strings));
-    println!("Uncontended unique S... NewIntern {}", uncontended!(NewIntern, strings));
-    println!("  Contended unique S... ArcIntern {}",   contended!(ArcIntern, strings));
-    println!("Uncontended unique S... ArcIntern {}", uncontended!(ArcIntern, strings));
-    println!("Uncontended unique S..ArenaIntern {}", uncontended!(ArcIntern, arena_strings));
+    println!(
+        "  Contended unique Strings Intern {}",
+        contended!(Intern, strings)
+    );
+    println!(
+        "Uncontended unique Strings Intern {}",
+        uncontended!(Intern, strings)
+    );
+    println!(
+        "  Contended unique S... NewIntern {}",
+        contended!(NewIntern, strings)
+    );
+    println!(
+        "Uncontended unique S... NewIntern {}",
+        uncontended!(NewIntern, strings)
+    );
+    println!(
+        "  Contended unique S... ArcIntern {}",
+        contended!(ArcIntern, strings)
+    );
+    println!(
+        "Uncontended unique S... ArcIntern {}",
+        uncontended!(ArcIntern, strings)
+    );
+    println!(
+        "Uncontended unique S..ArenaIntern {}",
+        uncontended!(ArcIntern, arena_strings)
+    );
     println!("\n");
 
-    println!("  Contended four types Intern {}",      contended!(Intern, four_types));
-    println!("Uncontended four types Intern {}",      uncontended!(Intern, four_types));
-    println!("  Contended four ...NewIntern {}",     contended!(NewIntern, four_types));
-    println!("Uncontended four ...NewIntern {}",   uncontended!(NewIntern, four_types));
-    println!("  Contended four ...ArcIntern {}",   contended!(ArcIntern, four_types));
-    println!("Uncontended four ...ArcIntern {}",   uncontended!(ArcIntern, four_types));
+    println!(
+        "  Contended four types Intern {}",
+        contended!(Intern, four_types)
+    );
+    println!(
+        "Uncontended four types Intern {}",
+        uncontended!(Intern, four_types)
+    );
+    println!(
+        "  Contended four ...NewIntern {}",
+        contended!(NewIntern, four_types)
+    );
+    println!(
+        "Uncontended four ...NewIntern {}",
+        uncontended!(NewIntern, four_types)
+    );
+    println!(
+        "  Contended four ...ArcIntern {}",
+        contended!(ArcIntern, four_types)
+    );
+    println!(
+        "Uncontended four ...ArcIntern {}",
+        uncontended!(ArcIntern, four_types)
+    );
     println!("\n");
 
-    println!("Contended arrays Intern {}", contended!(Intern, same_arrays));
-    println!("Uncontended  ... Intern {}", uncontended!(Intern, same_arrays));
-    println!("Contended ... NewIntern {}",   contended!(NewIntern, same_arrays));
-    println!("Uncontended . NewIntern {}", uncontended!(NewIntern, same_arrays));
-    println!("Contended ... ArcIntern {}", contended!(ArcIntern, same_arrays));
-    println!("Uncontended . ArcIntern {}", uncontended!(ArcIntern, same_arrays));
+    println!(
+        "Contended arrays Intern {}",
+        contended!(Intern, same_arrays)
+    );
+    println!(
+        "Uncontended  ... Intern {}",
+        uncontended!(Intern, same_arrays)
+    );
+    println!(
+        "Contended ... NewIntern {}",
+        contended!(NewIntern, same_arrays)
+    );
+    println!(
+        "Uncontended . NewIntern {}",
+        uncontended!(NewIntern, same_arrays)
+    );
+    println!(
+        "Contended ... ArcIntern {}",
+        contended!(ArcIntern, same_arrays)
+    );
+    println!(
+        "Uncontended . ArcIntern {}",
+        uncontended!(ArcIntern, same_arrays)
+    );
     println!("\n");
 
-    println!("Contended different arrays Intern {}", contended!(Intern, different_arrays));
-    println!("Contended different arrays Intern {}", uncontended!(Intern, different_arrays));
-    println!("Contended different ... NewIntern {}",   contended!(NewIntern, different_arrays));
-    println!("Contended different ... NewIntern {}", uncontended!(NewIntern, different_arrays));
-    println!("Contended different ... ArcIntern {}", contended!(ArcIntern, different_arrays));
-    println!("Contended different ... ArcIntern {}", uncontended!(ArcIntern, different_arrays));
+    println!(
+        "Contended different arrays Intern {}",
+        contended!(Intern, different_arrays)
+    );
+    println!(
+        "Contended different arrays Intern {}",
+        uncontended!(Intern, different_arrays)
+    );
+    println!(
+        "Contended different ... NewIntern {}",
+        contended!(NewIntern, different_arrays)
+    );
+    println!(
+        "Contended different ... NewIntern {}",
+        uncontended!(NewIntern, different_arrays)
+    );
+    println!(
+        "Contended different ... ArcIntern {}",
+        contended!(ArcIntern, different_arrays)
+    );
+    println!(
+        "Contended different ... ArcIntern {}",
+        uncontended!(ArcIntern, different_arrays)
+    );
     println!("\n");
 
     Intern::new(0i64);
@@ -460,8 +609,10 @@ fn main() {
         }
         let s1: HashSet<_> = s1.iter().cloned().map(|s| Intern::new(s)).collect();
         let s2: HashSet<_> = s2.iter().cloned().map(|s| Intern::new(s)).collect();
-        let s1_str: HashSet<Intern<str>> = s1.iter().cloned().map(|s| From::from(s.as_str())).collect();
-        let s2_str: HashSet<Intern<str>> = s2.iter().cloned().map(|s| From::from(s.as_str())).collect();
+        let s1_str: HashSet<Intern<str>> =
+            s1.iter().cloned().map(|s| From::from(s.as_str())).collect();
+        let s2_str: HashSet<Intern<str>> =
+            s2.iter().cloned().map(|s| From::from(s.as_str())).collect();
         println!(
             "Intern<String>::compare/hash {}",
             bench_gen_env(|| (s1.clone(), s2.clone()), rmset)
@@ -477,7 +628,13 @@ fn main() {
         );
         println!(
             "Intern<str> sort {}",
-            bench_gen_env(|| s1.iter().map(|i| From::from(i.as_str())).collect::<Vec<Intern<str>>>(), |v| v.sort())
+            bench_gen_env(
+                || s1
+                    .iter()
+                    .map(|i| From::from(i.as_str()))
+                    .collect::<Vec<Intern<str>>>(),
+                |v| v.sort()
+            )
         );
         println!(
             "Intern<String> any eq str {}",
