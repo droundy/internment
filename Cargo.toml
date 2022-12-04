@@ -1,7 +1,7 @@
 [package]
 name = "internment"
 version = "0.7.0"
-authors = ["David Roundy <roundyd@physics.oregonstate.edu>"]
+authors = ["David Roundy <daveroundy@gmail.com>"]
 edition = "2018"
 
 description = "Easy interning of data"
@@ -24,7 +24,7 @@ maintenance = { status = "actively-developed" }
 
 [dependencies]
 
-parking_lot = "0.12.0"
+parking_lot = "0.12.1"
 ahash = { version = "0.7.6", optional = true }
 dashmap = { version = "5.4.0", optional = true }
 once_cell = { version = "1.4", optional = true }
