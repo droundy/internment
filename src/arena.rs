@@ -304,6 +304,64 @@ impl<'a, T: ?Sized> ArenaIntern<'a, T> {
     fn get_pointer(&self) -> *const T {
         self.pointer as *const T
     }
+
+    /// Get a reference to a value interned into an arena.
+    ///
+    /// This function allows you to store values into a structure
+    /// inline, without having to take a `&'a` reference to an
+    /// `ArenaIntern<'a, T>`. This is required as using
+    /// [`std::ops::Deref`] or [`std::convert::AsRef`]
+    /// requires a `&self` receiver, but doing so, due to the bounds
+    /// of these traits' functions, would implicitly require that
+    /// this reference lives for `'a`.
+    ///
+    /// # Example
+    ///
+    /// Consider the following structures.
+    /// ```rust
+    /// # use internment::ArenaIntern;
+    /// struct Bar {
+    ///     baz: String,
+    /// }
+    /// 
+    /// struct Foo<'a>(ArenaIntern<'a, Bar>);
+    /// ```
+    /// 
+    /// The following code does not compile.
+    /// ```compile_fail
+    /// # use internment::ArenaIntern;
+    /// # struct Bar {
+    /// #     baz: String,
+    /// # }
+    /// #
+    /// # struct Foo<'a>(ArenaIntern<'a, Bar>);
+    /// #
+    /// impl<'a> Foo<'a> {
+    ///     pub fn get_baz(self) -> &'a str {
+    ///         &self.0.as_ref().baz
+    ///         // ^^^ ERROR: cannot return value referencing local data `self.0`
+    ///     }
+    /// }
+    /// ```
+    ///
+    /// This similar code, which uses `into_ref`, does compile.
+    /// ```rust
+    /// # use internment::ArenaIntern;
+    /// # struct Bar {
+    /// #     baz: String,
+    /// # }
+    /// #
+    /// # struct Foo<'a>(ArenaIntern<'a, Bar>);
+    /// #
+    /// impl<'a> Foo<'a> {
+    ///     pub fn get_baz(self) -> &'a str {
+    ///         &self.0.into_ref().baz
+    ///     }
+    /// }
+    /// ```
+    pub fn into_ref(self) -> &'a T {
+        self.pointer
+    }
 }
 
 /// The hash implementation returns the hash of the pointer
