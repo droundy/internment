@@ -1,4 +1,7 @@
 
+* 0.7.1 - June 17, 2023
+
+    - Added `ArcIntern::into_ref` (thanks PuzzleMaker!).
 
 * 0.7.0 - March 30, 2022
 
