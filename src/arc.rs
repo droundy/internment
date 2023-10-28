@@ -1,5 +1,6 @@
 #![deny(missing_docs)]
 use ahash::RandomState;
+use std::any::{Any, TypeId};
 use std::fmt::{Debug, Display, Pointer};
 type Container<T> = DashMap<BoxRefCount<T>, (), RandomState>;
 type Untyped = &'static (dyn Any + Send + Sync + 'static);
@@ -7,12 +8,10 @@ use std::borrow::Borrow;
 use std::convert::AsRef;
 use std::hash::{Hash, Hasher};
 use std::ops::Deref;
-
-use dashmap::{mapref::entry::Entry, DashMap};
-use std::any::Any;
-use std::any::TypeId;
 use std::sync::atomic::AtomicUsize;
 use std::sync::atomic::Ordering;
+
+use dashmap::{mapref::entry::Entry, DashMap};
 
 #[cfg(feature = "serde")]
 use serde::{Deserialize, Deserializer, Serialize, Serializer};
@@ -44,33 +43,34 @@ use serde::{Deserialize, Deserializer, Serialize, Serializer};
 /// assert_eq!(&*x, "hello"); // dereference an ArcIntern like a pointer
 /// ```
 #[cfg_attr(docsrs, doc(cfg(feature = "arc")))]
-pub struct ArcIntern<T: Eq + Hash + Send + Sync + 'static> {
-    pointer: std::ptr::NonNull<RefCount<T>>,
+pub struct ArcIntern<T: ?Sized + Eq + Hash + Send + Sync + 'static> {
+    pub(crate) pointer: std::ptr::NonNull<RefCount<T>>,
 }
 
-unsafe impl<T: Eq + Hash + Send + Sync> Send for ArcIntern<T> {}
-unsafe impl<T: Eq + Hash + Send + Sync> Sync for ArcIntern<T> {}
+unsafe impl<T: ?Sized + Eq + Hash + Send + Sync> Send for ArcIntern<T> {}
+unsafe impl<T: ?Sized + Eq + Hash + Send + Sync> Sync for ArcIntern<T> {}
 
 #[derive(Debug)]
-struct RefCount<T> {
-    count: AtomicUsize,
-    data: T,
+pub(crate) struct RefCount<T: ?Sized> {
+    pub(crate) count: AtomicUsize,
+    pub(crate) data: T,
 }
-impl<T: Eq> Eq for RefCount<T> {}
-impl<T: PartialEq> PartialEq for RefCount<T> {
+
+impl<T: ?Sized + Eq> Eq for RefCount<T> {}
+impl<T: ?Sized + PartialEq> PartialEq for RefCount<T> {
     fn eq(&self, other: &Self) -> bool {
         self.data == other.data
     }
 }
-impl<T: Hash> Hash for RefCount<T> {
+impl<T: ?Sized + Hash> Hash for RefCount<T> {
     fn hash<H: Hasher>(&self, hasher: &mut H) {
         self.data.hash(hasher)
     }
 }
 
 #[derive(Eq, PartialEq)]
-struct BoxRefCount<T>(Box<RefCount<T>>);
-impl<T: Hash> Hash for BoxRefCount<T> {
+pub(crate) struct BoxRefCount<T: ?Sized>(pub Box<RefCount<T>>);
+impl<T: ?Sized + Hash> Hash for BoxRefCount<T> {
     fn hash<H: Hasher>(&self, hasher: &mut H) {
         self.0.data.hash(hasher)
     }
@@ -81,30 +81,50 @@ impl<T> BoxRefCount<T> {
         self.0.data
     }
 }
-impl<T> Borrow<T> for BoxRefCount<T> {
+
+impl<T: ?Sized> Borrow<T> for BoxRefCount<T> {
     fn borrow(&self) -> &T {
         &self.0.data
     }
 }
-impl<T> Borrow<RefCount<T>> for BoxRefCount<T> {
+impl<T: ?Sized> Borrow<RefCount<T>> for BoxRefCount<T> {
     fn borrow(&self) -> &RefCount<T> {
         &self.0
     }
 }
-impl<T> Deref for BoxRefCount<T> {
+impl<T: ?Sized> Deref for BoxRefCount<T> {
     type Target = T;
     fn deref(&self) -> &Self::Target {
         &self.0.data
     }
 }
 
-impl<T: Eq + Hash + Send + Sync + 'static> ArcIntern<T> {
+impl<T: ?Sized + Eq + Hash + Send + Sync + 'static> ArcIntern<T> {
     fn get_pointer(&self) -> *const RefCount<T> {
         self.pointer.as_ptr()
     }
-    fn get_container() -> &'static Container<T> {
+    pub(crate) fn get_container() -> &'static Container<T> {
         use once_cell::sync::OnceCell;
         static ARC_CONTAINERS: OnceCell<DashMap<TypeId, Untyped, RandomState>> = OnceCell::new();
+
+        // make some shortcuts to speed up get_container.
+        macro_rules! common_containers {
+            ($($t:ty),*) => {
+                $(
+                // hopefully this will be optimized away by compiler for types that are not matched.
+                // for matched types, this completely avoids the need to look up dashmap.
+                if TypeId::of::<T>() == TypeId::of::<$t>() {
+                    static CONTAINER: OnceCell<Container<$t>> = OnceCell::new();
+                    let c: &'static Container<$t> = CONTAINER.get_or_init(|| Container::with_hasher(RandomState::new()));
+                    // SAFETY: we just compared to make sure `T` == `$t`.
+                    // This converts Container<$t> to Container<T> to make the compiler happy.
+                    return unsafe { &*((c as *const Container<$t>).cast::<Container<T>>()) };
+                }
+                )*
+            };
+        }
+        common_containers!(str, String);
+
         let type_map = ARC_CONTAINERS.get_or_init(|| DashMap::with_hasher(RandomState::new()));
         // Prefer taking the read lock to reduce contention, only use entry api if necessary.
         let boxed = if let Some(boxed) = type_map.get(&TypeId::of::<T>()) {
@@ -119,6 +139,35 @@ impl<T: Eq + Hash + Send + Sync + 'static> ArcIntern<T> {
         };
         (*boxed).downcast_ref().unwrap()
     }
+    /// Intern a value from a reference with atomic reference counting.
+    ///
+    /// If this value has not previously been
+    /// interned, then `new` will allocate a spot for the value on the
+    /// heap and generate that value using `T::from(val)`.
+    pub fn from_ref<'a, Q: ?Sized + Eq + Hash + 'a>(val: &'a Q) -> ArcIntern<T>
+    where
+        T: Borrow<Q> + From<&'a Q>,
+    {
+        // No reference only fast-path as
+        // the trait `std::borrow::Borrow<Q>` is not implemented for `Arc<T>`
+        Self::new(val.into())
+    }
+    /// See how many objects have been interned.  This may be helpful
+    /// in analyzing memory use.
+    pub fn num_objects_interned() -> usize {
+        Self::get_container().len()
+    }
+    /// Return the number of counts for this pointer.
+    pub fn refcount(&self) -> usize {
+        unsafe { self.pointer.as_ref().count.load(Ordering::Acquire) }
+    }
+
+    /// Only for benchmarking, this will cause problems
+    #[cfg(feature = "bench")]
+    pub fn benchmarking_only_clear_interns() {}
+}
+
+impl<T: Eq + Hash + Send + Sync + 'static> ArcIntern<T> {
     /// Intern a value.  If this value has not previously been
     /// interned, then `new` will allocate a spot for the value on the
     /// heap.  Otherwise, it will return a pointer to the object
@@ -171,35 +220,9 @@ impl<T: Eq + Hash + Send + Sync + 'static> ArcIntern<T> {
             std::thread::yield_now();
         }
     }
-    /// Intern a value from a reference with atomic reference counting.
-    ///
-    /// If this value has not previously been
-    /// interned, then `new` will allocate a spot for the value on the
-    /// heap and generate that value using `T::from(val)`.
-    pub fn from_ref<'a, Q: ?Sized + Eq + Hash + 'a>(val: &'a Q) -> ArcIntern<T>
-    where
-        T: Borrow<Q> + From<&'a Q>,
-    {
-        // No reference only fast-path as
-        // the trait `std::borrow::Borrow<Q>` is not implemented for `Arc<T>`
-        Self::new(val.into())
-    }
-    /// See how many objects have been interned.  This may be helpful
-    /// in analyzing memory use.
-    pub fn num_objects_interned() -> usize {
-        Self::get_container().len()
-    }
-    /// Return the number of counts for this pointer.
-    pub fn refcount(&self) -> usize {
-        unsafe { self.pointer.as_ref().count.load(Ordering::Acquire) }
-    }
-
-    /// Only for benchmarking, this will cause problems
-    #[cfg(feature = "bench")]
-    pub fn benchmarking_only_clear_interns() {}
 }
 
-impl<T: Eq + Hash + Send + Sync + 'static> Clone for ArcIntern<T> {
+impl<T: ?Sized + Eq + Hash + Send + Sync + 'static> Clone for ArcIntern<T> {
     fn clone(&self) -> Self {
         // First increment the count.  Using a relaxed ordering is
         // alright here, as knowledge of the original reference
@@ -220,7 +243,7 @@ fn yield_on_tests() {
     std::thread::yield_now();
 }
 
-impl<T: Eq + Hash + Send + Sync> Drop for ArcIntern<T> {
+impl<T: ?Sized + Eq + Hash + Send + Sync> Drop for ArcIntern<T> {
     fn drop(&mut self) {
         // (Quoting from std::sync::Arc again): Because `fetch_sub` is
         // already atomic, we do not need to synchronize with other
@@ -253,26 +276,32 @@ impl<T: Eq + Hash + Send + Sync> Drop for ArcIntern<T> {
     }
 }
 
-impl<T: Send + Sync + Hash + Eq> AsRef<T> for ArcIntern<T> {
+impl<T: ?Sized + Send + Sync + Hash + Eq> AsRef<T> for ArcIntern<T> {
     fn as_ref(&self) -> &T {
         unsafe { &self.pointer.as_ref().data }
     }
 }
 
-impl<T: Eq + Hash + Send + Sync> Deref for ArcIntern<T> {
+impl<T: ?Sized + Eq + Hash + Send + Sync> Deref for ArcIntern<T> {
     type Target = T;
     fn deref(&self) -> &T {
         self.as_ref()
     }
 }
 
-impl<T: Eq + Hash + Send + Sync + Display> Display for ArcIntern<T> {
+impl<T: ?Sized + Eq + Hash + Send + Sync> Borrow<T> for ArcIntern<T> {
+    fn borrow(&self) -> &T {
+        self.as_ref()
+    }
+}
+
+impl<T: ?Sized + Eq + Hash + Send + Sync + Display> Display for ArcIntern<T> {
     fn fmt(&self, f: &mut std::fmt::Formatter) -> Result<(), std::fmt::Error> {
         self.deref().fmt(f)
     }
 }
 
-impl<T: Eq + Hash + Send + Sync> Pointer for ArcIntern<T> {
+impl<T: ?Sized + Eq + Hash + Send + Sync> Pointer for ArcIntern<T> {
     fn fmt(&self, f: &mut std::fmt::Formatter) -> Result<(), std::fmt::Error> {
         Pointer::fmt(&self.get_pointer(), f)
     }
@@ -283,20 +312,20 @@ impl<T: Eq + Hash + Send + Sync> Pointer for ArcIntern<T> {
 /// be irrelevant, since there is a unique pointer for every
 /// value, but it *is* observable, since you could compare the
 /// hash of the pointer with hash of the data itself.
-impl<T: Eq + Hash + Send + Sync> Hash for ArcIntern<T> {
+impl<T: ?Sized + Eq + Hash + Send + Sync> Hash for ArcIntern<T> {
     fn hash<H: Hasher>(&self, state: &mut H) {
         self.get_pointer().hash(state);
     }
 }
 
-impl<T: Eq + Hash + Send + Sync> PartialEq for ArcIntern<T> {
+impl<T: ?Sized + Eq + Hash + Send + Sync> PartialEq for ArcIntern<T> {
     fn eq(&self, other: &Self) -> bool {
         self.get_pointer() == other.get_pointer()
     }
 }
-impl<T: Eq + Hash + Send + Sync> Eq for ArcIntern<T> {}
+impl<T: ?Sized + Eq + Hash + Send + Sync> Eq for ArcIntern<T> {}
 
-impl<T: Eq + Hash + Send + Sync + PartialOrd> PartialOrd for ArcIntern<T> {
+impl<T: ?Sized + Eq + Hash + Send + Sync + PartialOrd> PartialOrd for ArcIntern<T> {
     fn partial_cmp(&self, other: &Self) -> Option<std::cmp::Ordering> {
         self.as_ref().partial_cmp(other)
     }
@@ -313,7 +342,7 @@ impl<T: Eq + Hash + Send + Sync + PartialOrd> PartialOrd for ArcIntern<T> {
         self.as_ref().ge(other)
     }
 }
-impl<T: Eq + Hash + Send + Sync + Ord> Ord for ArcIntern<T> {
+impl<T: ?Sized + Eq + Hash + Send + Sync + Ord> Ord for ArcIntern<T> {
     fn cmp(&self, other: &Self) -> std::cmp::Ordering {
         self.as_ref().cmp(other)
     }
@@ -321,7 +350,7 @@ impl<T: Eq + Hash + Send + Sync + Ord> Ord for ArcIntern<T> {
 
 #[cfg_attr(docsrs, doc(cfg(feature = "serde")))]
 #[cfg(feature = "serde")]
-impl<T: Eq + Hash + Send + Sync + Serialize> Serialize for ArcIntern<T> {
+impl<T: ?Sized + Eq + Hash + Send + Sync + Serialize> Serialize for ArcIntern<T> {
     fn serialize<S: Serializer>(&self, serializer: S) -> Result<S::Ok, S::Error> {
         self.as_ref().serialize(serializer)
     }
@@ -332,6 +361,7 @@ impl<T: Eq + Hash + Send + Sync + 'static> From<T> for ArcIntern<T> {
         ArcIntern::new(t)
     }
 }
+
 impl<T: Eq + Hash + Send + Sync + Default + 'static> Default for ArcIntern<T> {
     fn default() -> Self {
         ArcIntern::new(Default::default())
@@ -340,8 +370,9 @@ impl<T: Eq + Hash + Send + Sync + Default + 'static> Default for ArcIntern<T> {
 
 #[cfg_attr(docsrs, doc(cfg(feature = "serde")))]
 #[cfg(feature = "serde")]
-impl<'de, T: Eq + Hash + Send + Sync + 'static + Deserialize<'de>> Deserialize<'de>
-    for ArcIntern<T>
+impl<'de, T> Deserialize<'de> for ArcIntern<T>
+where
+    T: Eq + Hash + Send + Sync + 'static + Deserialize<'de>,
 {
     fn deserialize<D: Deserializer<'de>>(deserializer: D) -> Result<Self, D::Error> {
         T::deserialize(deserializer).map(|x: T| Self::new(x))
@@ -432,7 +463,7 @@ fn test_arcintern_nested_drop() {
     let _one = ArcIntern::new(Nat::Successor(zero));
 }
 
-impl<T: Eq + Hash + Send + Sync + Debug> Debug for ArcIntern<T> {
+impl<T: ?Sized + Eq + Hash + Send + Sync + Debug> Debug for ArcIntern<T> {
     fn fmt(&self, f: &mut std::fmt::Formatter) -> Result<(), std::fmt::Error> {
         Pointer::fmt(&self.pointer, f)?;
         f.write_str(" : ")?;
@@ -499,7 +530,7 @@ fn like_doctest_arcintern() {
 }
 
 /// This function illustrates that dashmap has a failure under miri
-/// 
+///
 /// This prevents us from using miri to validate our unsafe code.
 #[test]
 fn just_dashmap() {
