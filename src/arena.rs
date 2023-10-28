@@ -47,14 +47,14 @@ pub struct ArenaIntern<'a, T: ?Sized> {
     pointer: &'a T,
 }
 
-impl<'a, T> Clone for ArenaIntern<'a, T> {
+impl<'a, T: ?Sized> Clone for ArenaIntern<'a, T> {
     fn clone(&self) -> Self {
         ArenaIntern {
             pointer: self.pointer,
         }
     }
 }
-impl<'a, T> Copy for ArenaIntern<'a, T> {}
+impl<'a, T: ?Sized> Copy for ArenaIntern<'a, T> {}
 
 impl<T: ?Sized> Arena<T> {
     /// Allocate a new `Arena`
