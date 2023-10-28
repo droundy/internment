@@ -1,6 +1,6 @@
 [package]
 name = "internment"
-version = "0.7.3"
+version = "0.7.4"
 authors = ["David Roundy <daveroundy@gmail.com>"]
 edition = "2018"
 
@@ -11,7 +11,7 @@ repository = "https://github.com/droundy/internment"
 readme = "README.md"
 categories = ["caching", "memory-management", "concurrency"]
 keywords = ["hash", "interning", "hashconsing", "caching", "interner"]
-rust-version = "1.60"
+rust-version = "1.65"
 
 [badges]
 

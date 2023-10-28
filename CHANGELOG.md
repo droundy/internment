@@ -1,3 +1,7 @@
+* 0.7.4 - October 28, 2023
+
+    - Increased MSRV to 1.65, got it wrong last time because I forgot to check
+      the `arc` feature.
 
 * 0.7.3 - October 28, 2023
 
