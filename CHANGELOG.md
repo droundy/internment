@@ -1,4 +1,13 @@
 
+* 0.7.2 - October 28, 2023
+
+    - Increased MSRV to 1.60 for building and 1.65 for testing due to changes in
+      dependencies.
+
+    - Bumped ahash dependency version.
+
+    - Optimization of `ArcInvtern` (thanks gwy15!).
+
 * 0.7.1 - June 17, 2023
 
     - Added `ArcIntern::into_ref` (thanks PuzzleMaker!).
