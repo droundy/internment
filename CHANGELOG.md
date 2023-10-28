@@ -1,4 +1,8 @@
 
+* 0.7.3 - October 28, 2023
+
+    - Made `Copy` and `Clone` for ArenaIntern support `?Sized` types.
+
 * 0.7.2 - October 28, 2023
 
     - Increased MSRV to 1.60 for building and 1.65 for testing due to changes in
