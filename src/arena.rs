@@ -174,7 +174,7 @@ impl Arena<std::ffi::CStr> {
     /// Intern a `Box<CStr>` as `ArenaIntern<CStr>`.
     ///
     /// If this value has not previously been interned, then `intern` will save
-    /// the provided `Box<CSr>`.  Otherwise, it will free its input `Box<CStr>`
+    /// the provided `Box<CStr>`.  Otherwise, it will free its input `Box<CStr>`
     /// and return a pointer to the `CStr` previously saved.
     pub fn intern_box(&self, val: Box<std::ffi::CStr>) -> ArenaIntern<std::ffi::CStr> {
         self.intern_from_owned(val)
@@ -200,7 +200,7 @@ impl Arena<std::ffi::OsStr> {
     /// Intern a `Box<OsStr>` as `ArenaIntern<OsStr>`.
     ///
     /// If this value has not previously been interned, then `intern` will save
-    /// the provided `Box<CSr>`.  Otherwise, it will free its input `Box<OsStr>`
+    /// the provided `Box<OsStr>`.  Otherwise, it will free its input `Box<OsStr>`
     /// and return a pointer to the `OsStr` previously saved.
     pub fn intern_box(&self, val: Box<std::ffi::OsStr>) -> ArenaIntern<std::ffi::OsStr> {
         self.intern_from_owned(val)
@@ -226,18 +226,18 @@ impl Arena<std::path::Path> {
     /// Intern a `Box<Path>` as `ArenaIntern<Path>`.
     ///
     /// If this value has not previously been interned, then `intern` will save
-    /// the provided `Box<CSr>`.  Otherwise, it will free its input `Box<Path>`
+    /// the provided `Box<Path>`.  Otherwise, it will free its input `Box<Path>`
     /// and return a pointer to the `Path` previously saved.
     pub fn intern_box(&self, val: Box<std::path::Path>) -> ArenaIntern<std::path::Path> {
         self.intern_from_owned(val)
     }
 }
 impl<T: Eq + Hash + Copy> Arena<[T]> {
-    /// Intern a `&\[T\]` as `ArenaIntern<[T]>`.
+    /// Intern a `&[T]` as `ArenaIntern<[T]>`.
     ///
     /// If this value has not previously been interned, then `intern` will
     /// allocate a spot for the value on the heap.  Otherwise, it will return a
-    /// pointer to the `\[T\]` previously allocated.
+    /// pointer to the `[T]` previously allocated.
     pub fn intern<'a, 'b>(&'a self, val: &'b [T]) -> ArenaIntern<'a, [T]> {
         self.intern_ref(val)
     }
