@@ -313,16 +313,6 @@ fn dst_arc_intern_is_clone() {
 }
 
 #[test]
-fn dst_arc_intern_is_borrow() {
-    // demonstrate that Arc has this ability
-    let map = std::collections::HashMap::<std::sync::Arc<str>, u32>::new();
-    assert!(map.get("dst_arc_intern_is_borrow").is_none());
-
-    let map = std::collections::HashMap::<ArcIntern<str>, u32>::new();
-    assert!(map.get("dst_arc_intern_is_borrow").is_none());
-}
-
-#[test]
 fn dst_arc_intern_is_send_and_sync() {
     struct _Assure
     where

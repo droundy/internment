@@ -289,12 +289,6 @@ impl<T: ?Sized + Eq + Hash + Send + Sync> Deref for ArcIntern<T> {
     }
 }
 
-impl<T: ?Sized + Eq + Hash + Send + Sync> Borrow<T> for ArcIntern<T> {
-    fn borrow(&self) -> &T {
-        self.as_ref()
-    }
-}
-
 impl<T: ?Sized + Eq + Hash + Send + Sync + Display> Display for ArcIntern<T> {
     fn fmt(&self, f: &mut std::fmt::Formatter) -> Result<(), std::fmt::Error> {
         self.deref().fmt(f)
