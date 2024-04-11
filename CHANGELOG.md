@@ -1,3 +1,10 @@
+* 0.8.1 - April 11, 2024
+
+    - Increased MSRV to 1.70.
+
+    - Made `ArcIntern` not implement `Borrow` which I apparently missed in
+      version 0.7.0.
+
 * 0.7.4 - October 28, 2023
 
     - Increased MSRV to 1.65, got it wrong last time because I forgot to check
