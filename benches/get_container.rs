@@ -1,6 +1,6 @@
 //! This is a benchmark to demonstrate that cached types (`String`, `str` as of now)
 //! are faster than non-cached types because the lack of getting container from a dashmap.
-//! 
+//!
 //! The results show a whopping 26% performance gain for short `ArcIntern<String>`.
 
 use criterion::*;

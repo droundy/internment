@@ -323,10 +323,10 @@ impl<'a, T: ?Sized> ArenaIntern<'a, T> {
     /// struct Bar {
     ///     baz: String,
     /// }
-    /// 
+    ///
     /// struct Foo<'a>(ArenaIntern<'a, Bar>);
     /// ```
-    /// 
+    ///
     /// The following code does not compile.
     /// ```compile_fail
     /// # use internment::ArenaIntern;
