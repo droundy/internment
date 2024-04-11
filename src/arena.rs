@@ -387,8 +387,6 @@ impl<'a, T: ?Sized> Eq for ArenaIntern<'a, T> {}
 
 impl<'a, T: std::fmt::Debug + ?Sized> std::fmt::Debug for ArenaIntern<'a, T> {
     fn fmt(&self, f: &mut std::fmt::Formatter) -> Result<(), std::fmt::Error> {
-        std::fmt::Debug::fmt(&self.get_pointer(), f)?;
-        f.write_str(" : ")?;
         self.as_ref().fmt(f)
     }
 }

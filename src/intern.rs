@@ -494,8 +494,6 @@ mod intern_tests {
 
 impl<T: Debug + ?Sized> Debug for Intern<T> {
     fn fmt(&self, f: &mut std::fmt::Formatter) -> Result<(), std::fmt::Error> {
-        std::fmt::Debug::fmt(&self.get_pointer(), f)?;
-        f.write_str(" : ")?;
         self.as_ref().fmt(f)
     }
 }

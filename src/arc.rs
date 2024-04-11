@@ -459,8 +459,6 @@ fn test_arcintern_nested_drop() {
 
 impl<T: ?Sized + Eq + Hash + Send + Sync + Debug> Debug for ArcIntern<T> {
     fn fmt(&self, f: &mut std::fmt::Formatter) -> Result<(), std::fmt::Error> {
-        Pointer::fmt(&self.pointer, f)?;
-        f.write_str(" : ")?;
         self.deref().fmt(f)
     }
 }
