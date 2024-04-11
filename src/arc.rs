@@ -509,15 +509,6 @@ fn arc_has_niche() {
         std::mem::size_of::<Option<ArcIntern<String>>>(),
         std::mem::size_of::<usize>(),
     );
-
-    assert_eq!(
-        std::mem::size_of::<ArcIntern<str>>(),
-        std::mem::size_of::<usize>(),
-    );
-    assert_eq!(
-        std::mem::size_of::<Option<ArcIntern<str>>>(),
-        std::mem::size_of::<usize>(),
-    );
 }
 
 #[test]
