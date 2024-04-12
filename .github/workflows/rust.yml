@@ -10,7 +10,7 @@ jobs:
       matrix:
         rust:
           - stable
-          # - 1.70
+          - "1.70"
     steps:
       - uses: actions/checkout@v2
       - uses: actions-rs/toolchain@v1
@@ -62,23 +62,23 @@ jobs:
         env:
           RUSTFLAGS: --cfg docsrs
           RUSTDOCFLAGS: --cfg docsrs -Dwarnings
-  # msrv:
-  #   name: Minimum supported rust version
-  #   runs-on: ubuntu-latest
-  #   strategy:
-  #     matrix:
-  #       rust:
-  #         - 1.70
-  #   steps:
-  #     - uses: actions/checkout@v2
-  #     - uses: actions-rs/toolchain@v1
-  #       with:
-  #         profile: minimal
-  #         toolchain: ${{ matrix.rust }}
-  #         override: true
-  #     - uses: actions-rs/cargo@v1
-  #       with:
-  #         command: test
+  msrv:
+    name: Minimum supported rust version
+    runs-on: ubuntu-latest
+    strategy:
+      matrix:
+        rust:
+          - "1.70"
+    steps:
+      - uses: actions/checkout@v2
+      - uses: actions-rs/toolchain@v1
+        with:
+          profile: minimal
+          toolchain: ${{ matrix.rust }}
+          override: true
+      - uses: actions-rs/cargo@v1
+        with:
+          command: test
   miri-test:
       runs-on: ubuntu-latest
       strategy:
