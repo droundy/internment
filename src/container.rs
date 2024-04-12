@@ -1,7 +1,7 @@
-use parking_lot::Mutex;
 use std::any::Any;
 use std::any::TypeId;
 use std::hash::{Hash, Hasher};
+use std::sync::Mutex;
 
 pub struct TypeHolderSend(Vec<AnySend>);
 
@@ -33,7 +33,7 @@ pub struct Arena {
 
 impl Arena {
     pub const fn new() -> Self {
-        const EMPTY: Mutex<TypeHolderSend> = parking_lot::const_mutex(TypeHolderSend::new());
+        const EMPTY: Mutex<TypeHolderSend> = Mutex::new(TypeHolderSend::new());
         Arena {
             containers: [EMPTY; INTERN_CONTAINER_COUNT],
         }
@@ -82,6 +82,7 @@ impl Arena {
         f(
             self.containers[hash_of_type::<T>() as usize % INTERN_CONTAINER_COUNT]
                 .lock()
+                .unwrap()
                 .get_type_mut(),
         )
     }

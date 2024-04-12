@@ -1,8 +1,8 @@
 #![deny(missing_docs)]
 use crate::boxedset::HashSet;
-use parking_lot::Mutex;
 use std::borrow::Borrow;
 use std::hash::{Hash, Hasher};
+use std::sync::Mutex;
 
 /// A arena for storing interned data
 ///
@@ -71,7 +71,7 @@ impl<T: Eq + Hash> Arena<T> {
     /// allocate a spot for the value on the heap.  Otherwise, it will return a
     /// pointer to the object previously allocated.
     pub fn intern(&self, val: T) -> ArenaIntern<T> {
-        let mut m = self.data.lock();
+        let mut m = self.data.lock().unwrap();
         if let Some(b) = m.get(&val) {
             let p = b.as_ref() as *const T;
             return ArenaIntern {
@@ -94,7 +94,7 @@ impl<T: Eq + Hash + ?Sized> Arena<T> {
         Box<T>: From<&'b I>,
         I: Eq + std::hash::Hash + ?Sized,
     {
-        let mut m = self.data.lock();
+        let mut m = self.data.lock().unwrap();
         if let Some(b) = m.get(val) {
             let p = b.as_ref() as *const T;
             return ArenaIntern {
@@ -113,7 +113,7 @@ impl<T: Eq + Hash + ?Sized> Arena<T> {
         Box<T>: From<I>,
         I: Eq + std::hash::Hash + AsRef<T>,
     {
-        let mut m = self.data.lock();
+        let mut m = self.data.lock().unwrap();
         if let Some(b) = m.get(val.as_ref()) {
             let p = b.as_ref() as *const T;
             return ArenaIntern {
@@ -346,7 +346,7 @@ impl<T: Eq + Hash + ?Sized> Arena<T> {
         T: 'a + Borrow<I> + From<&'b I>,
         I: Eq + std::hash::Hash + ?Sized,
     {
-        let mut m = self.data.lock();
+        let mut m = self.data.lock().unwrap();
         if let Some(b) = m.get(val) {
             let p = b.as_ref() as *const T;
             return ArenaIntern {
