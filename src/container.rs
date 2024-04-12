@@ -86,3 +86,20 @@ impl Arena {
         )
     }
 }
+
+#[test]
+fn test_arena() {
+    let arena = Arena::new();
+    arena.with(|x: &mut i32| {
+        *x = 42;
+    });
+    arena.with(|x: &mut u32| {
+        *x = 137;
+    });
+    arena.with(|x: &mut i32| {
+        assert_eq!(*x, 42);
+    });
+    arena.with(|x: &mut u32| {
+        assert_eq!(*x, 137);
+    });
+}
