@@ -1,5 +1,5 @@
 # Internment &emsp; [![Latest version](https://img.shields.io/crates/v/internment.svg)](https://crates.io/crates/internment) [![Documentation](https://docs.rs/internment/badge.svg)](https://docs.rs/internment) [![Build Status](https://travis-ci.org/droundy/internment.svg?branch=master)](https://travis-ci.org/droundy/internment) [![Windows Build status](https://ci.appveyor.com/api/projects/status/3dps5r08b5a78fyu?svg=true)](https://ci.appveyor.com/project/droundy/internment)
-[![Coverage status](https://codecov.io/gh/droundy/internment/branch/master/graph/badge.svg?token=8hNGJoUd0Z)](https://codecov.io/gh/droundy/internment)
+[![Coverage Status](https://coveralls.io/repos/github/droundy/internment/badge.svg?branch=master)](https://coveralls.io/github/droundy/internment?branch=master)
 
 [Changelog](CHANGELOG.md)
 
