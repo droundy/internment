@@ -6,6 +6,8 @@ output-type: lcov
 output-path: ./my-lcov.info
 keep-only:
   - "src/*"
+ignore:
+  - "*.cargo/*"
 excl-line: "#.derive.+"
 excl-start: "#.+test..?$"
 excl-stop: "^$"
