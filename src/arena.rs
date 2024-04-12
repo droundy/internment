@@ -160,6 +160,15 @@ impl Arena<std::ffi::CStr> {
     /// If this value has not previously been interned, then `intern` will
     /// allocate a spot for the value on the heap.  Otherwise, it will return a
     /// pointer to the `CStr` previously allocated.
+    ///
+    /// # Example
+    /// ```
+    /// # use internment::Arena;
+    /// # let arena = Arena::<std::ffi::CStr>::new();
+    /// let x = arena.intern(std::ffi::CString::new("hello").unwrap().as_c_str());
+    /// let y = arena.intern(std::ffi::CString::new("hello").unwrap().as_c_str());
+    /// assert_eq!(x, y);
+    /// ```
     pub fn intern<'a, 'b>(&'a self, val: &'b std::ffi::CStr) -> ArenaIntern<'a, std::ffi::CStr> {
         self.intern_ref(val)
     }
@@ -168,6 +177,15 @@ impl Arena<std::ffi::CStr> {
     /// If this value has not previously been interned, then `intern` will save
     /// the provided `CString`.  Otherwise, it will free its input `CString` and
     /// return a pointer to the `CStr` previously saved.
+    ///
+    /// # Example
+    /// ```
+    /// # use internment::Arena;
+    /// # let arena = Arena::<std::ffi::CStr>::new();
+    /// let x = arena.intern_cstring(std::ffi::CString::new("hello").unwrap());
+    /// let y = arena.intern_cstring(std::ffi::CString::new("hello").unwrap());
+    /// assert_eq!(x, y);
+    /// ```
     pub fn intern_cstring(&self, val: std::ffi::CString) -> ArenaIntern<std::ffi::CStr> {
         self.intern_from_owned(val)
     }
@@ -176,6 +194,15 @@ impl Arena<std::ffi::CStr> {
     /// If this value has not previously been interned, then `intern` will save
     /// the provided `Box<CSr>`.  Otherwise, it will free its input `Box<CStr>`
     /// and return a pointer to the `CStr` previously saved.
+    ///
+    /// # Example
+    /// ```
+    /// # use internment::Arena;
+    /// # let arena = Arena::<std::ffi::CStr>::new();
+    /// let x = arena.intern_cstring(std::ffi::CString::new("hello").unwrap());
+    /// let y = arena.intern_box(std::ffi::CString::new("hello").unwrap().into_boxed_c_str());
+    /// assert_eq!(x, y);
+    /// ```
     pub fn intern_box(&self, val: Box<std::ffi::CStr>) -> ArenaIntern<std::ffi::CStr> {
         self.intern_from_owned(val)
     }
@@ -186,6 +213,15 @@ impl Arena<std::ffi::OsStr> {
     /// If this value has not previously been interned, then `intern` will
     /// allocate a spot for the value on the heap.  Otherwise, it will return a
     /// pointer to the `OsStr` previously allocated.
+    ///
+    /// # Example
+    /// ```
+    /// # use internment::Arena;
+    /// # let arena = Arena::<std::ffi::OsStr>::new();
+    /// let x = arena.intern(std::ffi::OsStr::new("hello"));
+    /// let y = arena.intern(std::ffi::OsStr::new("hello"));
+    /// assert_eq!(x, y);
+    /// ```
     pub fn intern<'a, 'b>(&'a self, val: &'b std::ffi::OsStr) -> ArenaIntern<'a, std::ffi::OsStr> {
         self.intern_ref(val)
     }
@@ -194,6 +230,15 @@ impl Arena<std::ffi::OsStr> {
     /// If this value has not previously been interned, then `intern` will save
     /// the provided `OsString`.  Otherwise, it will free its input `OsString` and
     /// return a pointer to the `OsStr` previously saved.
+    ///
+    /// # Example
+    /// ```
+    /// # use internment::Arena;
+    /// # let arena = Arena::<std::ffi::OsStr>::new();
+    /// let x = arena.intern_osstring(std::ffi::OsString::from("hello"));
+    /// let y = arena.intern_osstring(std::ffi::OsString::from("hello"));
+    /// assert_eq!(x, y);
+    /// ```
     pub fn intern_osstring(&self, val: std::ffi::OsString) -> ArenaIntern<std::ffi::OsStr> {
         self.intern_from_owned(val)
     }
@@ -202,6 +247,15 @@ impl Arena<std::ffi::OsStr> {
     /// If this value has not previously been interned, then `intern` will save
     /// the provided `Box<CSr>`.  Otherwise, it will free its input `Box<OsStr>`
     /// and return a pointer to the `OsStr` previously saved.
+    ///
+    /// # Example
+    /// ```
+    /// # use internment::Arena;
+    /// # let arena = Arena::<std::ffi::OsStr>::new();
+    /// let x = arena.intern_osstring(std::ffi::OsString::from("hello"));
+    /// let y = arena.intern_box(std::ffi::OsString::from("hello").into_boxed_os_str());
+    /// assert_eq!(x, y);
+    /// ```
     pub fn intern_box(&self, val: Box<std::ffi::OsStr>) -> ArenaIntern<std::ffi::OsStr> {
         self.intern_from_owned(val)
     }
@@ -212,6 +266,15 @@ impl Arena<std::path::Path> {
     /// If this value has not previously been interned, then `intern` will
     /// allocate a spot for the value on the heap.  Otherwise, it will return a
     /// pointer to the `Path` previously allocated.
+    ///
+    /// # Example
+    /// ```
+    /// # use internment::Arena;
+    /// # let arena = Arena::<std::path::Path>::new();
+    /// let x = arena.intern(std::path::Path::new("hello"));
+    /// let y = arena.intern(std::path::Path::new("hello"));
+    /// assert_eq!(x, y);
+    /// ```
     pub fn intern<'a, 'b>(&'a self, val: &'b std::path::Path) -> ArenaIntern<'a, std::path::Path> {
         self.intern_ref(val)
     }
@@ -220,6 +283,15 @@ impl Arena<std::path::Path> {
     /// If this value has not previously been interned, then `intern` will save
     /// the provided `PathBuf`.  Otherwise, it will free its input `PathBuf` and
     /// return a pointer to the `Path` previously saved.
+    ///
+    /// # Example
+    /// ```
+    /// # use internment::Arena;
+    /// # let arena = Arena::<std::path::Path>::new();
+    /// let x = arena.intern_pathbuf(std::path::PathBuf::from("hello"));
+    /// let y = arena.intern_pathbuf(std::path::PathBuf::from("hello"));
+    /// assert_eq!(x, y);
+    /// ```
     pub fn intern_pathbuf(&self, val: std::path::PathBuf) -> ArenaIntern<std::path::Path> {
         self.intern_from_owned(val)
     }
@@ -228,6 +300,15 @@ impl Arena<std::path::Path> {
     /// If this value has not previously been interned, then `intern` will save
     /// the provided `Box<CSr>`.  Otherwise, it will free its input `Box<Path>`
     /// and return a pointer to the `Path` previously saved.
+    ///
+    /// # Example
+    /// ```
+    /// # use internment::Arena;
+    /// # let arena = Arena::<std::path::Path>::new();
+    /// let x = arena.intern_pathbuf(std::path::PathBuf::from("hello"));
+    /// let y = arena.intern_box(std::path::PathBuf::from("hello").into_boxed_path());
+    /// assert_eq!(x, y);
+    /// ```
     pub fn intern_box(&self, val: Box<std::path::Path>) -> ArenaIntern<std::path::Path> {
         self.intern_from_owned(val)
     }
