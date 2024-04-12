@@ -54,7 +54,7 @@ where
     use core::ops::DerefMut;
     for v in CONTAINERS[hash_of_type::<T>() % CONTAINER_COUNT].iter() {
         if let Some(m) = v.0.downcast_ref::<Mutex<HashSet<T>>>() {
-            let mut m = m.lock();
+            let mut m = m.lock().unwrap();
             return f(m.deref_mut());
         }
     }
@@ -67,7 +67,7 @@ where
     // different type.
     for v in CONTAINERS[hash_of_type::<T>() % CONTAINER_COUNT].iter() {
         if let Some(m) = v.0.downcast_ref::<Mutex<HashSet<T>>>() {
-            let mut m = m.lock();
+            let mut m = m.lock().unwrap();
             return f(m.deref_mut());
         }
     }
@@ -76,11 +76,11 @@ where
 
 use super::boxedset;
 use boxedset::HashSet;
-use parking_lot::Mutex;
 use std::borrow::Borrow;
 use std::convert::AsRef;
 use std::fmt::{Debug, Display, Pointer};
 use std::ops::Deref;
+use std::sync::Mutex;
 
 #[cfg(feature = "serde")]
 use serde::{Deserialize, Deserializer, Serialize, Serializer};
