@@ -76,7 +76,7 @@ impl Arena {
 
             let mut hasher = HasherForTypeId { hash: 0 };
             TypeId::of::<T>().hash(&mut hasher);
-            hasher.hash
+            hasher.finish()
         }
 
         f(
