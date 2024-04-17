@@ -41,10 +41,26 @@ use std::sync::Mutex;
 pub struct Arena<T: ?Sized> {
     data: Mutex<HashSet<Box<T>>>,
 }
+
+#[cfg(feature = "deepsize")]
+impl<T: ?Sized + deepsize::DeepSizeOf> deepsize::DeepSizeOf for Arena<T> {
+    fn deep_size_of_children(&self, context: &mut deepsize::Context) -> usize {
+        let hashset = self.data.lock().unwrap();
+        hashset.deep_size_of_children(context)
+    }
+}
+
 /// An interned object reference with the data stored in an `Arena<T>`.
 #[cfg_attr(docsrs, doc(cfg(feature = "arena")))]
 pub struct ArenaIntern<'a, T: ?Sized> {
     pointer: &'a T,
+}
+
+#[cfg(feature = "deepsize")]
+impl<'a, T: ?Sized + deepsize::DeepSizeOf> deepsize::DeepSizeOf for ArenaIntern<'a, T> {
+    fn deep_size_of_children(&self, _context: &mut deepsize::Context) -> usize {
+        std::mem::size_of::<&T>()
+    }
 }
 
 impl<'a, T: ?Sized> Clone for ArenaIntern<'a, T> {

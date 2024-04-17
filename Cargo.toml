@@ -1,6 +1,6 @@
 [package]
 name = "internment"
-version = "0.8.1"
+version = "0.8.2"
 authors = ["David Roundy <daveroundy@gmail.com>"]
 edition = "2018"
 
@@ -32,6 +32,7 @@ tinyset = { version = "0.4.2", optional =  true }
 memorable-wordlist = { version = "0.1.7", optional = true }
 hashbrown = { version = "0.14.3" }
 serde = { version = "1.0", optional = true }
+deepsize = { version = "0.2.0", optional = true }
 
 arc-interner = { version = "0.7", optional = true }
 

@@ -79,3 +79,9 @@ mod arc_dst;
 
 #[cfg(feature = "arc")]
 pub use arc::ArcIntern;
+
+#[cfg(all(feature = "arc", feature = "deepsize"))]
+pub use arc::deep_size_of_arc_interned;
+
+#[cfg(all(feature = "intern", feature = "deepsize"))]
+pub use intern::deep_size_of_interned;

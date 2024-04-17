@@ -1,3 +1,7 @@
+* 0.8.2 - April 17, 2024
+
+    - Added support for `deepsize` for all three intern types.
+
 * 0.8.1 - April 11, 2024
 
     - Increased MSRV to 1.70.

@@ -16,6 +16,20 @@ impl<P> HashSet<P> {
         HashSet(HashMap::new())
     }
 }
+
+#[cfg(feature = "deepsize")]
+impl<P: deepsize::DeepSizeOf> deepsize::DeepSizeOf for HashSet<P> {
+    fn deep_size_of_children(&self, context: &mut deepsize::Context) -> usize {
+        let pointers = self.0.capacity() * std::mem::size_of::<P>();
+        let heap_memory = self
+            .0
+            .keys()
+            .map(|n| n.deep_size_of_children(context))
+            .sum::<usize>();
+        pointers + heap_memory
+    }
+}
+
 impl<P: Deref + Eq + Hash> HashSet<P> {
     pub fn get<'a, Q: ?Sized + Eq + Hash>(&'a self, key: &Q) -> Option<&'a P>
     where

@@ -63,6 +63,22 @@ pub struct Intern<T: 'static + ?Sized> {
     pointer: &'static T,
 }
 
+#[cfg(feature = "deepsize")]
+impl<T: 'static + ?Sized> deepsize::DeepSizeOf for Intern<T> {
+    fn deep_size_of_children(&self, _context: &mut deepsize::Context) -> usize {
+        0
+    }
+}
+
+#[cfg_attr(docsrs, doc(cfg(all(feature = "deepsize", feature = "intern"))))]
+/// Return the memory used by all interned objects of the given type.
+#[cfg(feature = "deepsize")]
+pub fn deep_size_of_interned<T: Eq + Hash + Send + Sync + 'static + deepsize::DeepSizeOf>() -> usize
+{
+    use deepsize::DeepSizeOf;
+    INTERN_CONTAINERS.with(|m: &mut HashSet<&'static T>| -> usize { m.deep_size_of() })
+}
+
 #[test]
 fn has_niche() {
     assert_eq!(

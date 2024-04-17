@@ -47,6 +47,28 @@ pub struct ArcIntern<T: ?Sized + Eq + Hash + Send + Sync + 'static> {
     pub(crate) pointer: std::ptr::NonNull<RefCount<T>>,
 }
 
+#[cfg(feature = "deepsize")]
+impl<T: ?Sized + Eq + Hash + Send + Sync + 'static> deepsize::DeepSizeOf for ArcIntern<T> {
+    fn deep_size_of_children(&self, _context: &mut deepsize::Context) -> usize {
+        0
+    }
+}
+
+#[cfg_attr(docsrs, doc(cfg(all(feature = "deepsize", feature = "arc"))))]
+/// Return the memory used by all interned objects of the given type.
+#[cfg(feature = "deepsize")]
+pub fn deep_size_of_arc_interned<
+    T: ?Sized + Eq + Hash + Send + Sync + 'static + deepsize::DeepSizeOf,
+>() -> usize {
+    let x = ArcIntern::<T>::get_container();
+    let pointers = x.capacity() * std::mem::size_of::<BoxRefCount<T>>();
+    let heap_memory = x
+        .iter()
+        .map(|n| std::mem::size_of::<usize>() + n.key().0.data.deep_size_of())
+        .sum::<usize>();
+    pointers + heap_memory
+}
+
 unsafe impl<T: ?Sized + Eq + Hash + Send + Sync> Send for ArcIntern<T> {}
 unsafe impl<T: ?Sized + Eq + Hash + Send + Sync> Sync for ArcIntern<T> {}
 
