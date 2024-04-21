@@ -390,7 +390,7 @@ impl<T: Eq + Hash + Send + Sync + Ord + ?Sized> Ord for Intern<T> {
 
 #[cfg_attr(docsrs, doc(cfg(feature = "serde")))]
 #[cfg(feature = "serde")]
-impl<T: Eq + Hash + Send + Sync + Serialize> Serialize for Intern<T> {
+impl<T: Eq + Hash + Send + Sync + Serialize + ?Sized> Serialize for Intern<T> {
     fn serialize<S: Serializer>(&self, serializer: S) -> Result<S::Ok, S::Error> {
         self.as_ref().serialize(serializer)
     }
@@ -409,7 +409,7 @@ impl<T: Eq + Hash + Send + Sync + Default + 'static> Default for Intern<T> {
 
 #[cfg_attr(docsrs, doc(cfg(feature = "serde")))]
 #[cfg(feature = "serde")]
-impl<'de, T: Eq + Hash + Send + Sync + 'static + Deserialize<'de>> Deserialize<'de> for Intern<T> {
+impl<'de, T: Eq + Hash + Send + Sync + ?Sized + 'static + Deserialize<'de>> Deserialize<'de> for Intern<T> {
     fn deserialize<D: Deserializer<'de>>(deserializer: D) -> Result<Self, D::Error> {
         T::deserialize(deserializer).map(|x: T| Self::new(x))
     }

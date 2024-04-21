@@ -1,3 +1,7 @@
+* 0.8.3 - April 21, 2024
+
+    - Made `Intern<str>` work with `serde`.
+
 * 0.8.2 - April 17, 2024
 
     - Added support for `deepsize` for all three intern types.
