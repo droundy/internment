@@ -76,7 +76,7 @@ impl<T: 'static + ?Sized> deepsize::DeepSizeOf for Intern<T> {
 pub fn deep_size_of_interned<T: Eq + Hash + Send + Sync + 'static + deepsize::DeepSizeOf>() -> usize
 {
     use deepsize::DeepSizeOf;
-    INTERN_CONTAINERS.with(|m: &mut HashSet<&'static T>| -> usize { m.deep_size_of() })
+    INTERN_CONTAINERS.with(|m: &mut HashSet<&'static T>| -> usize { (*m).deep_size_of() })
 }
 
 #[test]
@@ -417,8 +417,10 @@ impl<'de, T: Eq + Hash + Send + Sync + ?Sized + 'static + Deserialize<'de>> Dese
 
 #[cfg(test)]
 mod intern_tests {
-    use super::Intern;
     use super::{Borrow, Deref};
+    use super::{Intern, INTERN_CONTAINERS};
+    use crate::boxedset::HashSet;
+
     #[test]
     fn eq_string() {
         assert_eq!(Intern::new("hello"), Intern::new("hello"));
@@ -505,6 +507,24 @@ mod intern_tests {
         for h in thandles.into_iter() {
             h.join().unwrap()
         }
+    }
+
+    #[cfg(feature = "deepsize")]
+    #[test]
+    fn test_deep_size() {
+        use crate::deep_size_of_interned;
+        use deepsize::DeepSizeOf;
+
+        let string = String::from("abcdefghijklmnopqrstuvwxyz");
+        let string_size = string.deep_size_of();
+
+        let _ = Intern::new(string);
+        let set_size = INTERN_CONTAINERS.with(|m: &mut HashSet<&'static String>| size_of_val(m));
+        let pointers_in_set_size = INTERN_CONTAINERS
+            .with(|m: &mut HashSet<&'static String>| size_of::<&'static String>() * m.capacity());
+
+        let interned_size = deep_size_of_interned::<String>();
+        assert_eq!(interned_size, string_size + set_size + pointers_in_set_size);
     }
 }
 
