@@ -2,6 +2,7 @@
 use crate::boxedset::HashSet;
 use std::borrow::Borrow;
 use std::hash::{Hash, Hasher};
+use std::ops::Deref;
 use std::sync::Mutex;
 
 /// A arena for storing interned data
@@ -45,8 +46,10 @@ pub struct Arena<T: ?Sized> {
 #[cfg(feature = "deepsize")]
 impl<T: ?Sized + deepsize::DeepSizeOf> deepsize::DeepSizeOf for Arena<T> {
     fn deep_size_of_children(&self, context: &mut deepsize::Context) -> usize {
+        use deepsize::DeepSizeOf;
+
         let hashset = self.data.lock().unwrap();
-        hashset.deep_size_of_children(context)
+        hashset.deref().deep_size_of_children(context)
     }
 }
 
