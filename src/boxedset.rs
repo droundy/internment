@@ -30,6 +30,19 @@ impl<P: deepsize::DeepSizeOf> deepsize::DeepSizeOf for HashSet<&'static P> {
     }
 }
 
+#[cfg(feature = "deepsize")]
+impl <P: deepsize::DeepSizeOf + ?Sized> deepsize::DeepSizeOf for HashSet<Box<P>> {
+    fn deep_size_of_children(&self, context: &mut deepsize::Context) -> usize {
+        let pointers = self.0.capacity() * size_of::<Box<P>>();
+        let heap_memory = self
+            .0
+            .keys()
+            .map(|n| (**n).deep_size_of_children(context) + size_of_val(&**n))
+            .sum::<usize>();
+        pointers + heap_memory
+    }
+}
+
 impl<P: Deref + Eq + Hash> HashSet<P> {
     pub fn get<'a, Q: ?Sized + Eq + Hash>(&'a self, key: &Q) -> Option<&'a P>
     where

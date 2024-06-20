@@ -49,7 +49,7 @@ impl<T: ?Sized + deepsize::DeepSizeOf> deepsize::DeepSizeOf for Arena<T> {
         use deepsize::DeepSizeOf;
 
         let hashset = self.data.lock().unwrap();
-        hashset.deref().deep_size_of_children(context)
+        (*hashset).deep_size_of_children(context)
     }
 }
 
