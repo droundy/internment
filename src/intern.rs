@@ -419,17 +419,19 @@ impl<'de, T: Eq + Hash + Send + Sync + ?Sized + 'static + Deserialize<'de>> Dese
 #[cfg(test)]
 mod intern_tests {
     use std::hash::Hash;
-    use std::sync::Arc;
 
+    use super::Intern;
     use super::{Borrow, Deref};
-    use super::{Intern, INTERN_CONTAINERS};
-    use crate::boxedset::HashSet;
+
+    #[cfg(feature = "deepsize")]
+    use super::INTERN_CONTAINERS;
+    #[cfg(feature = "deepsize")]
+    use crate::{boxedset::HashSet, deep_size_of_interned};
+    #[cfg(feature = "deepsize")]
+    use std::sync::Arc;
 
     #[cfg(feature = "deepsize")]
     use deepsize::{Context, DeepSizeOf};
-
-    #[cfg(feature = "deepsize")]
-    use crate::deep_size_of_interned;
 
     #[test]
     fn eq_string() {
