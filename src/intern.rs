@@ -523,8 +523,8 @@ mod intern_tests {
     #[test]
     fn test_deep_size() {
         let string1 = String::from("abcdefghijklmnopqrstuvwxyz");
-        let string2 = String::from("abcdefghijklmnopqrstuvwxyz");
-        let string3 = String::from("abcdefghijklmnopqrstuvwxyz");
+        let string2 = string1.clone();
+        let string3 = string1.clone();
         // 3 string are the same, interned only once
         let string_size = string1.deep_size_of();
 
@@ -532,10 +532,12 @@ mod intern_tests {
         let _ = Intern::new(string2);
         let _ = Intern::new(string3);
         // size of set
-        let set_size = INTERN_CONTAINERS.with(|m: &mut HashSet<&'static String>| size_of_val(m));
+        let set_size =
+            INTERN_CONTAINERS.with(|m: &mut HashSet<&'static String>| std::mem::size_of_val(m));
         // size of pointers in the set
-        let pointers_in_set_size = INTERN_CONTAINERS
-            .with(|m: &mut HashSet<&'static String>| size_of::<&'static String>() * m.capacity());
+        let pointers_in_set_size = INTERN_CONTAINERS.with(|m: &mut HashSet<&'static String>| {
+            std::mem::size_of::<&'static String>() * m.capacity()
+        });
 
         let interned_size = deep_size_of_interned::<String>();
         assert_eq!(interned_size, string_size + set_size + pointers_in_set_size);
@@ -596,33 +598,34 @@ mod intern_tests {
             pointer: a1.pointer.clone(),
         };
         // size of ArcInside, 16 bytes each
-        let object_size = size_of::<ArcInside>() * 3;
+        let object_size = std::mem::size_of::<ArcInside>() * 3;
 
         let _ = Intern::new(a1);
         let _ = Intern::new(a2);
         let _ = Intern::new(a3);
 
         // size of set
-        let set_size = INTERN_CONTAINERS.with(|m: &mut HashSet<&'static ArcInside>| size_of_val(m));
+        let set_size =
+            INTERN_CONTAINERS.with(|m: &mut HashSet<&'static ArcInside>| std::mem::size_of_val(m));
         // size of pointers in the set
         let pointers_in_set_size = INTERN_CONTAINERS.with(|m: &mut HashSet<&'static ArcInside>| {
-            size_of::<&'static ArcInside>() * m.capacity()
+            std::mem::size_of::<&'static ArcInside>() * m.capacity()
         });
 
         // 3 ArcInside has different hash values
         INTERN_CONTAINERS.with(|m: &mut HashSet<&'static ArcInside>| assert_eq!(m.len(), 3));
 
         let interned_size = deep_size_of_interned::<ArcInside>();
-        assert_eq!(
-            interned_size,
-            string_size + object_size + set_size + pointers_in_set_size
-        );
 
         println!("string_size: {}", string_size);
         println!("object_size: {}", object_size);
         println!("set_size: {}", set_size);
         println!("pointers_in_set_size: {}", pointers_in_set_size);
         println!("interned_size: {}", interned_size);
+        assert_eq!(
+            interned_size,
+            string_size + object_size + set_size + pointers_in_set_size
+        );
     }
 }
 
