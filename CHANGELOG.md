@@ -1,3 +1,7 @@
+* 0.8.4 - June 22, 2024
+
+    - Fixed `DeepSizeOf` impl, thanks @gmryuuko.
+
 * 0.8.3 - April 21, 2024
 
     - Made `Intern<str>` work with `serde`.
