@@ -43,7 +43,6 @@ use tinyset::Fits64;
 /// assert_eq!(y, Intern::from("world"));
 /// assert_eq!(&*x, "hello"); // dereference a Intern like a pointer
 /// ```
-
 #[test]
 fn like_doctest_intern() {
     let x = Intern::new("hello".to_string());
@@ -76,7 +75,7 @@ impl<T: 'static + ?Sized> deepsize::DeepSizeOf for Intern<T> {
 pub fn deep_size_of_interned<T: Eq + Hash + Send + Sync + 'static + deepsize::DeepSizeOf>() -> usize
 {
     use deepsize::DeepSizeOf;
-    INTERN_CONTAINERS.with(|m: &mut HashSet<&'static T>| -> usize { m.deep_size_of() })
+    INTERN_CONTAINERS.with(|m: &mut HashSet<&'static T>| -> usize { (*m).deep_size_of() })
 }
 
 #[test]
@@ -409,7 +408,9 @@ impl<T: Eq + Hash + Send + Sync + Default + 'static> Default for Intern<T> {
 
 #[cfg_attr(docsrs, doc(cfg(feature = "serde")))]
 #[cfg(feature = "serde")]
-impl<'de, T: Eq + Hash + Send + Sync + ?Sized + 'static + Deserialize<'de>> Deserialize<'de> for Intern<T> {
+impl<'de, T: Eq + Hash + Send + Sync + ?Sized + 'static + Deserialize<'de>> Deserialize<'de>
+    for Intern<T>
+{
     fn deserialize<D: Deserializer<'de>>(deserializer: D) -> Result<Self, D::Error> {
         T::deserialize(deserializer).map(|x: T| Self::new(x))
     }
@@ -419,6 +420,17 @@ impl<'de, T: Eq + Hash + Send + Sync + ?Sized + 'static + Deserialize<'de>> Dese
 mod intern_tests {
     use super::Intern;
     use super::{Borrow, Deref};
+    use std::hash::Hash;
+
+    #[cfg(feature = "deepsize")]
+    use super::INTERN_CONTAINERS;
+    #[cfg(feature = "deepsize")]
+    use crate::{boxedset::HashSet, deep_size_of_interned};
+    #[cfg(feature = "deepsize")]
+    use deepsize::{Context, DeepSizeOf};
+    #[cfg(feature = "deepsize")]
+    use std::sync::Arc;
+
     #[test]
     fn eq_string() {
         assert_eq!(Intern::new("hello"), Intern::new("hello"));
@@ -505,6 +517,116 @@ mod intern_tests {
         for h in thandles.into_iter() {
             h.join().unwrap()
         }
+    }
+
+    #[cfg(feature = "deepsize")]
+    #[test]
+    fn test_deep_size() {
+        let string1 = String::from("abcdefghijklmnopqrstuvwxyz");
+        let string2 = string1.clone();
+        let string3 = string1.clone();
+        // 3 string are the same, interned only once
+        let string_size = string1.deep_size_of();
+
+        let _ = Intern::new(string1);
+        let _ = Intern::new(string2);
+        let _ = Intern::new(string3);
+        // size of set
+        let set_size =
+            INTERN_CONTAINERS.with(|m: &mut HashSet<&'static String>| std::mem::size_of_val(m));
+        // size of pointers in the set
+        let pointers_in_set_size = INTERN_CONTAINERS.with(|m: &mut HashSet<&'static String>| {
+            std::mem::size_of::<&'static String>() * m.capacity()
+        });
+
+        let interned_size = deep_size_of_interned::<String>();
+        assert_eq!(interned_size, string_size + set_size + pointers_in_set_size);
+    }
+
+    #[cfg(feature = "deepsize")]
+    #[derive(Clone)]
+    struct ArcInside {
+        hash: usize,
+        pointer: Arc<String>,
+    }
+
+    #[cfg(feature = "deepsize")]
+    impl Hash for ArcInside {
+        /// For testing purposes, we only hash the hash field.
+        /// In order to make [`ArcInside`] instances containing the same string have different hash values.
+        fn hash<H: std::hash::Hasher>(&self, state: &mut H) {
+            self.hash.hash(state);
+        }
+    }
+
+    #[cfg(feature = "deepsize")]
+    impl PartialEq for ArcInside {
+        /// For testing purposes, we only compare the hash field.
+        fn eq(&self, other: &Self) -> bool {
+            self.hash == other.hash
+        }
+    }
+
+    #[cfg(feature = "deepsize")]
+    impl Eq for ArcInside {}
+
+    #[cfg(feature = "deepsize")]
+    impl DeepSizeOf for ArcInside {
+        fn deep_size_of_children(&self, context: &mut Context) -> usize {
+            self.pointer.deep_size_of_children(context)
+        }
+    }
+
+    #[cfg(feature = "deepsize")]
+    #[test]
+    fn test_deep_size_with_context() {
+        let string = String::from("abcdefghijklmnopqrstuvwxyz");
+        // size of string inside arc, 50 bytes.
+        // Three arcs pointed to the same string will not be counted multiple times.
+        let string_size = string.deep_size_of();
+
+        let a1 = ArcInside {
+            hash: 1,
+            pointer: Arc::new(string),
+        };
+        let a2 = ArcInside {
+            hash: 2,
+            pointer: a1.pointer.clone(),
+        };
+        let a3 = ArcInside {
+            hash: 3,
+            pointer: a1.pointer.clone(),
+        };
+        // size of ArcInside, 16 bytes each
+        let object_size = std::mem::size_of::<ArcInside>() * 3;
+
+        let _ = Intern::new(a1);
+        let _ = Intern::new(a2);
+        let _ = Intern::new(a3);
+
+        // size of set
+        let set_size =
+            INTERN_CONTAINERS.with(|m: &mut HashSet<&'static ArcInside>| std::mem::size_of_val(m));
+        // size of pointers in the set
+        let pointers_in_set_size = INTERN_CONTAINERS.with(|m: &mut HashSet<&'static ArcInside>| {
+            std::mem::size_of::<&'static ArcInside>() * m.capacity()
+        });
+
+        let interned_size = deep_size_of_interned::<ArcInside>();
+
+        println!("string_size: {}", string_size);
+        println!("object_size: {}", object_size);
+        println!("set_size: {}", set_size);
+        println!("pointers_in_set_size: {}", pointers_in_set_size);
+        println!("interned_size: {}", interned_size);
+
+        // 3 ArcInside has different hash values
+        INTERN_CONTAINERS.with(|m: &mut HashSet<&'static ArcInside>| assert_eq!(m.len(), 3));
+
+        assert_eq!(
+            interned_size,
+            string_size + object_size + set_size + pointers_in_set_size
+        );
     }
 }
 

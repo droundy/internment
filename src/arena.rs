@@ -46,7 +46,7 @@ pub struct Arena<T: ?Sized> {
 impl<T: ?Sized + deepsize::DeepSizeOf> deepsize::DeepSizeOf for Arena<T> {
     fn deep_size_of_children(&self, context: &mut deepsize::Context) -> usize {
         let hashset = self.data.lock().unwrap();
-        hashset.deep_size_of_children(context)
+        (*hashset).deep_size_of_children(context)
     }
 }
 

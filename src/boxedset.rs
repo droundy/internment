@@ -18,13 +18,26 @@ impl<P> HashSet<P> {
 }
 
 #[cfg(feature = "deepsize")]
-impl<P: deepsize::DeepSizeOf> deepsize::DeepSizeOf for HashSet<P> {
+impl<P: deepsize::DeepSizeOf> deepsize::DeepSizeOf for HashSet<&'static P> {
     fn deep_size_of_children(&self, context: &mut deepsize::Context) -> usize {
-        let pointers = self.0.capacity() * std::mem::size_of::<P>();
+        let pointers = self.0.capacity() * std::mem::size_of::<&'static P>();
         let heap_memory = self
             .0
             .keys()
-            .map(|n| n.deep_size_of_children(context))
+            .map(|n| (**n).deep_size_of_children(context) + std::mem::size_of::<P>())
+            .sum::<usize>();
+        pointers + heap_memory
+    }
+}
+
+#[cfg(feature = "deepsize")]
+impl<P: deepsize::DeepSizeOf + ?Sized> deepsize::DeepSizeOf for HashSet<Box<P>> {
+    fn deep_size_of_children(&self, context: &mut deepsize::Context) -> usize {
+        let pointers = self.0.capacity() * std::mem::size_of::<Box<P>>();
+        let heap_memory = self
+            .0
+            .keys()
+            .map(|n| (**n).deep_size_of_children(context) + std::mem::size_of_val(&**n))
             .sum::<usize>();
         pointers + heap_memory
     }
@@ -63,6 +76,10 @@ impl<P: Deref + Eq + Hash> HashSet<P> {
     }
     pub fn len(&self) -> usize {
         self.0.len()
+    }
+    #[allow(dead_code)] // maybe unused without `deepsize` feature
+    pub fn capacity(&self) -> usize {
+        self.0.capacity()
     }
     #[cfg(feature = "bench")]
     pub fn clear(&mut self) {
