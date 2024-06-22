@@ -418,20 +418,18 @@ impl<'de, T: Eq + Hash + Send + Sync + ?Sized + 'static + Deserialize<'de>> Dese
 
 #[cfg(test)]
 mod intern_tests {
-    use std::hash::Hash;
-
     use super::Intern;
     use super::{Borrow, Deref};
+    use std::hash::Hash;
 
     #[cfg(feature = "deepsize")]
     use super::INTERN_CONTAINERS;
     #[cfg(feature = "deepsize")]
     use crate::{boxedset::HashSet, deep_size_of_interned};
     #[cfg(feature = "deepsize")]
-    use std::sync::Arc;
-
-    #[cfg(feature = "deepsize")]
     use deepsize::{Context, DeepSizeOf};
+    #[cfg(feature = "deepsize")]
+    use std::sync::Arc;
 
     #[test]
     fn eq_string() {
@@ -614,9 +612,6 @@ mod intern_tests {
             std::mem::size_of::<&'static ArcInside>() * m.capacity()
         });
 
-        // 3 ArcInside has different hash values
-        INTERN_CONTAINERS.with(|m: &mut HashSet<&'static ArcInside>| assert_eq!(m.len(), 3));
-
         let interned_size = deep_size_of_interned::<ArcInside>();
 
         println!("string_size: {}", string_size);
@@ -624,6 +619,10 @@ mod intern_tests {
         println!("set_size: {}", set_size);
         println!("pointers_in_set_size: {}", pointers_in_set_size);
         println!("interned_size: {}", interned_size);
+
+        // 3 ArcInside has different hash values
+        INTERN_CONTAINERS.with(|m: &mut HashSet<&'static ArcInside>| assert_eq!(m.len(), 3));
+
         assert_eq!(
             interned_size,
             string_size + object_size + set_size + pointers_in_set_size
