@@ -113,7 +113,7 @@ impl<T: ?Sized + Eq + Hash + Send + Sync + 'static> ArcIntern<T> {
 
 impl From<&str> for ArcIntern<str> {
     fn from(s: &str) -> Self {
-        ArcIntern::<str>::new_with_copyable_init_val(s, |s| RefCount::<str>::from_str(s))
+        ArcIntern::<str>::new_with_copyable_init_val(s, RefCount::<str>::from_str)
     }
 }
 
@@ -177,7 +177,7 @@ where
 // implement some useful equal comparisons
 macro_rules! impl_eq {
     ([$($vars:tt)*] $lhs:ty, $rhs: ty) => {
-        #[allow(unused_lifetimes)]
+        #[allow(unused_lifetimes, clippy::partialeq_ne_impl)]
         impl<'a, $($vars)*> PartialEq<$rhs> for $lhs {
             #[inline]
             fn eq(&self, other: &$rhs) -> bool {
@@ -189,7 +189,7 @@ macro_rules! impl_eq {
             }
         }
 
-        #[allow(unused_lifetimes)]
+        #[allow(unused_lifetimes, clippy::partialeq_ne_impl)]
         impl<'a, $($vars)*> PartialEq<$lhs> for $rhs {
             #[inline]
             fn eq(&self, other: &$lhs) -> bool {
@@ -441,7 +441,9 @@ fn dst_memory_aligned() {
             // Arrays are laid out so that the zero-based nth element of the array is
             // offset from the start of the array by n * size_of::<T>() bytes.
             let addr0 = &ptr.data as *const [Aligned] as *const Aligned as usize;
-            assert_eq!(addr0 % $align, 0);
+
+            #[allow(clippy::modulo_one)]
+            { assert_eq!(addr0 % $align, 0) };
             for idx in 1..10 {
                 let addr_offset = &ptr.data[idx] as *const _ as usize;
                 assert_eq!(addr0 + idx * std::mem::size_of::<Aligned>(), addr_offset);

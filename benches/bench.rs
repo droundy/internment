@@ -555,11 +555,11 @@ fn main() {
 
     println!(
         "Intern<i64>::new {}",
-        bench_gen_env(|| rand::random::<i64>(), |x| Intern::new(*x))
+        bench_gen_env(rand::random::<i64>, |x| Intern::new(*x))
     );
     println!(
         "Intern<u8>::new {}",
-        bench_gen_env(|| rand::random::<u8>(), |x| Intern::new(*x))
+        bench_gen_env(rand::random::<u8>, |x| Intern::new(*x))
     );
     {
         fn mkset(s: &mut HashSet<String>) -> HashSet<Intern<String>> {
@@ -607,8 +607,8 @@ fn main() {
                 s.0.remove(x);
             }
         }
-        let s1: HashSet<_> = s1.iter().cloned().map(|s| Intern::new(s)).collect();
-        let s2: HashSet<_> = s2.iter().cloned().map(|s| Intern::new(s)).collect();
+        let s1: HashSet<_> = s1.iter().cloned().map(Intern::new).collect();
+        let s2: HashSet<_> = s2.iter().cloned().map(Intern::new).collect();
         let s1_str: HashSet<Intern<str>> =
             s1.iter().cloned().map(|s| From::from(s.as_str())).collect();
         let s2_str: HashSet<Intern<str>> =
@@ -655,16 +655,19 @@ fn main() {
         );
     }
     let i = Intern::new(7i64);
-    println!("Intern<i64>::clone {}", bench(|| i.clone()));
+    #[allow(clippy::clone_on_copy)]
+    {
+        println!("Intern<i64>::clone {}", bench(|| i.clone()))
+    };
     println!();
 
     println!(
         "ArcIntern<i64>::new {}",
-        bench_gen_env(|| rand::random::<i64>(), |x| ArcIntern::new(*x))
+        bench_gen_env(rand::random::<i64>, |x| ArcIntern::new(*x))
     );
     println!(
         "ArcIntern<u8>::new {}",
-        bench_gen_env(|| rand::random::<u8>(), |x| ArcIntern::new(*x))
+        bench_gen_env(rand::random::<u8>, |x| ArcIntern::new(*x))
     );
     {
         fn mkset(s: &mut HashSet<String>) -> HashSet<ArcIntern<String>> {
@@ -699,8 +702,8 @@ fn main() {
                 s.0.remove(x);
             }
         }
-        let s1: HashSet<_> = s1.iter().cloned().map(|s| ArcIntern::new(s)).collect();
-        let s2: HashSet<_> = s2.iter().cloned().map(|s| ArcIntern::new(s)).collect();
+        let s1: HashSet<_> = s1.iter().cloned().map(ArcIntern::new).collect();
+        let s2: HashSet<_> = s2.iter().cloned().map(ArcIntern::new).collect();
         println!(
             "ArcIntern<String>::compare/hash {}",
             bench_gen_env(|| (s1.clone(), s2.clone()), rmset)
@@ -724,17 +727,11 @@ fn main() {
 
     println!(
         "arc_interner::ArcIntern<i64>::new {}",
-        bench_gen_env(
-            || rand::random::<i64>(),
-            |x| arc_interner::ArcIntern::new(*x)
-        )
+        bench_gen_env(rand::random::<i64>, |x| arc_interner::ArcIntern::new(*x))
     );
     println!(
         "arc_interner::ArcIntern<u8>::new {}",
-        bench_gen_env(
-            || rand::random::<u8>(),
-            |x| arc_interner::ArcIntern::new(*x)
-        )
+        bench_gen_env(rand::random::<u8>, |x| arc_interner::ArcIntern::new(*x))
     );
     {
         fn mkset(s: &mut HashSet<String>) -> HashSet<arc_interner::ArcIntern<String>> {
@@ -766,12 +763,12 @@ fn main() {
         let s1: HashSet<_> = s1
             .iter()
             .cloned()
-            .map(|s| arc_interner::ArcIntern::new(s))
+            .map(arc_interner::ArcIntern::new)
             .collect();
         let s2: HashSet<_> = s2
             .iter()
             .cloned()
-            .map(|s| arc_interner::ArcIntern::new(s))
+            .map(arc_interner::ArcIntern::new)
             .collect();
         println!(
             "arc_interner::ArcIntern<String>::compare/hash {}",

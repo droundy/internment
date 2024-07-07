@@ -92,9 +92,7 @@ fn has_niche() {
 
 impl<T: ?Sized> Clone for Intern<T> {
     fn clone(&self) -> Self {
-        Intern {
-            pointer: self.pointer,
-        }
+        *self
     }
 }
 
@@ -159,7 +157,7 @@ impl<T: Eq + Hash + Send + Sync + 'static + ?Sized> From<Box<T>> for Intern<T> {
             if let Some(&b) = m.get(val.borrow()) {
                 return Intern { pointer: b };
             }
-            let p: &'static T = Box::leak(Box::from(val));
+            let p: &'static T = Box::leak(val);
             m.insert(p);
             Intern { pointer: p }
         })
@@ -228,6 +226,7 @@ impl<T: Eq + Hash + Send + Sync + 'static> Intern<T> {
 impl<T: Eq + Hash + Send + Sync + 'static + ?Sized> Intern<T> {
     /// Get a long-lived reference to the data pointed to by an `Intern`, which
     /// is never freed from the intern pool.
+    #[allow(clippy::should_implement_trait)]
     pub fn as_ref(self) -> &'static T {
         self.pointer
     }
@@ -240,7 +239,7 @@ impl<T: Eq + Hash + Send + Sync + 'static + ?Sized> Intern<T> {
     /// Only for benchmarking, this will cause problems
     #[cfg(feature = "bench")]
     pub fn benchmarking_only_clear_interns() {
-        INTERN_CONTAINERS.with(|m: &mut HashSet<&'static T>| -> () { m.clear() })
+        INTERN_CONTAINERS.with(|m: &mut HashSet<&'static T>| m.clear())
     }
 }
 
@@ -293,11 +292,11 @@ const fn sz<T>() -> u64 {
 impl<T: Debug> Fits64 for Intern<T> {
     unsafe fn from_u64(x: u64) -> Self {
         Intern {
-            pointer: &*(((x ^ heap_location() / sz::<T>()) * sz::<T>()) as *const T),
+            pointer: &*(((x ^ (heap_location() / sz::<T>())) * sz::<T>()) as *const T),
         }
     }
     fn to_u64(self) -> u64 {
-        self.get_pointer() as u64 / sz::<T>() ^ heap_location() / sz::<T>()
+        (self.get_pointer() as u64 / sz::<T>()) ^ (heap_location() / sz::<T>())
     }
 }
 #[test]

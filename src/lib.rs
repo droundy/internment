@@ -15,16 +15,16 @@
 //! You have three options with the internment crate:
 //!
 //! 1. `Intern`, which will never free your data.  This means that an
-//! `Intern` is `Copy`, so you can make as many copies of the pointer
-//! as you may care to at no cost.
+//!    `Intern` is `Copy`, so you can make as many copies of the pointer
+//!    as you may care to at no cost.
 //!
 //! 2. `ArcIntern`, which reference-counts your data and frees it when
-//! there are no more references.  `ArcIntern` will keep memory use
-//! down, but uses an atomic increment/decrement whenever a clone of
-//! your pointer is made, or a pointer is dropped.
+//!    there are no more references.  `ArcIntern` will keep memory use
+//!    down, but uses an atomic increment/decrement whenever a clone of
+//!    your pointer is made, or a pointer is dropped.
 //!
 //! 3. `ArenaIntern`, which stores its data in an `Arena`, with the data being freed
-//!   when the arena itself is freed.  Requires feature `arena`.
+//!    when the arena itself is freed.  Requires feature `arena`.
 //!
 //! In each case, accessing your data is a single pointer dereference, and the size
 //! of any internment data structure (`Intern` or `ArcIntern` or `ArenaIntern`) is a
