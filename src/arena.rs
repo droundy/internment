@@ -64,6 +64,7 @@ impl<'a, T: ?Sized + deepsize::DeepSizeOf> deepsize::DeepSizeOf for ArenaIntern<
 }
 
 impl<'a, T: ?Sized> Clone for ArenaIntern<'a, T> {
+    #[inline(always)]
     fn clone(&self) -> Self {
         *self
     }
@@ -72,6 +73,7 @@ impl<'a, T: ?Sized> Copy for ArenaIntern<'a, T> {}
 
 impl<T: ?Sized> Arena<T> {
     /// Allocate a new `Arena`
+    #[inline]
     pub fn new() -> Self {
         Arena {
             data: Mutex::new(HashSet::new()),
@@ -148,6 +150,7 @@ impl Arena<str> {
     /// If this value has not previously been interned, then `intern` will
     /// allocate a spot for the value on the heap.  Otherwise, it will return a
     /// pointer to the `str` previously allocated.
+    #[inline]
     pub fn intern<'a>(&'a self, val: &str) -> ArenaIntern<'a, str> {
         self.intern_ref(val)
     }
@@ -156,6 +159,7 @@ impl Arena<str> {
     /// If this value has not previously been interned, then `intern` will save
     /// the provided `String`.  Otherwise, it will free its input `String` and
     /// return a pointer to the `str` previously saved.
+    #[inline]
     pub fn intern_string(&self, val: String) -> ArenaIntern<str> {
         self.intern_from_owned(val)
     }
@@ -164,6 +168,7 @@ impl Arena<str> {
     /// If this value has not previously been interned, then `intern` will save
     /// the provided `Box<str>`.  Otherwise, it will free its input `Box<str>`
     /// and return a pointer to the `str` previously saved.
+    #[inline]
     pub fn intern_box(&self, val: Box<str>) -> ArenaIntern<str> {
         self.intern_from_owned(val)
     }
@@ -183,6 +188,7 @@ impl Arena<std::ffi::CStr> {
     /// let y = arena.intern(std::ffi::CString::new("hello").unwrap().as_c_str());
     /// assert_eq!(x, y);
     /// ```
+    #[inline]
     pub fn intern<'a>(&'a self, val: &std::ffi::CStr) -> ArenaIntern<'a, std::ffi::CStr> {
         self.intern_ref(val)
     }
@@ -200,6 +206,7 @@ impl Arena<std::ffi::CStr> {
     /// let y = arena.intern_cstring(std::ffi::CString::new("hello").unwrap());
     /// assert_eq!(x, y);
     /// ```
+    #[inline]
     pub fn intern_cstring(&self, val: std::ffi::CString) -> ArenaIntern<std::ffi::CStr> {
         self.intern_from_owned(val)
     }
@@ -217,6 +224,7 @@ impl Arena<std::ffi::CStr> {
     /// let y = arena.intern_box(std::ffi::CString::new("hello").unwrap().into_boxed_c_str());
     /// assert_eq!(x, y);
     /// ```
+    #[inline]
     pub fn intern_box(&self, val: Box<std::ffi::CStr>) -> ArenaIntern<std::ffi::CStr> {
         self.intern_from_owned(val)
     }
@@ -236,6 +244,7 @@ impl Arena<std::ffi::OsStr> {
     /// let y = arena.intern(std::ffi::OsStr::new("hello"));
     /// assert_eq!(x, y);
     /// ```
+    #[inline]
     pub fn intern<'a>(&'a self, val: &std::ffi::OsStr) -> ArenaIntern<'a, std::ffi::OsStr> {
         self.intern_ref(val)
     }
@@ -253,6 +262,7 @@ impl Arena<std::ffi::OsStr> {
     /// let y = arena.intern_osstring(std::ffi::OsString::from("hello"));
     /// assert_eq!(x, y);
     /// ```
+    #[inline]
     pub fn intern_osstring(&self, val: std::ffi::OsString) -> ArenaIntern<std::ffi::OsStr> {
         self.intern_from_owned(val)
     }
@@ -270,6 +280,7 @@ impl Arena<std::ffi::OsStr> {
     /// let y = arena.intern_box(std::ffi::OsString::from("hello").into_boxed_os_str());
     /// assert_eq!(x, y);
     /// ```
+    #[inline]
     pub fn intern_box(&self, val: Box<std::ffi::OsStr>) -> ArenaIntern<std::ffi::OsStr> {
         self.intern_from_owned(val)
     }
@@ -289,6 +300,7 @@ impl Arena<std::path::Path> {
     /// let y = arena.intern(std::path::Path::new("hello"));
     /// assert_eq!(x, y);
     /// ```
+    #[inline]
     pub fn intern<'a>(&'a self, val: &std::path::Path) -> ArenaIntern<'a, std::path::Path> {
         self.intern_ref(val)
     }
@@ -306,6 +318,7 @@ impl Arena<std::path::Path> {
     /// let y = arena.intern_pathbuf(std::path::PathBuf::from("hello"));
     /// assert_eq!(x, y);
     /// ```
+    #[inline]
     pub fn intern_pathbuf(&self, val: std::path::PathBuf) -> ArenaIntern<std::path::Path> {
         self.intern_from_owned(val)
     }
@@ -323,6 +336,7 @@ impl Arena<std::path::Path> {
     /// let y = arena.intern_box(std::path::PathBuf::from("hello").into_boxed_path());
     /// assert_eq!(x, y);
     /// ```
+    #[inline]
     pub fn intern_box(&self, val: Box<std::path::Path>) -> ArenaIntern<std::path::Path> {
         self.intern_from_owned(val)
     }
@@ -333,6 +347,7 @@ impl<T: Eq + Hash + Copy> Arena<[T]> {
     /// If this value has not previously been interned, then `intern` will
     /// allocate a spot for the value on the heap.  Otherwise, it will return a
     /// pointer to the `[T]` previously allocated.
+    #[inline]
     pub fn intern<'a>(&'a self, val: &[T]) -> ArenaIntern<'a, [T]> {
         self.intern_ref(val)
     }
@@ -341,6 +356,7 @@ impl<T: Eq + Hash + Copy> Arena<[T]> {
     /// If this value has not previously been interned, then `intern` will save
     /// the provided `Vec<T>`.  Otherwise, it will free its input `Vec<T>` and
     /// return a pointer to the `[T]` previously saved.
+    #[inline]
     pub fn intern_vec(&self, val: Vec<T>) -> ArenaIntern<[T]> {
         self.intern_from_owned(val)
     }
@@ -349,6 +365,7 @@ impl<T: Eq + Hash + Copy> Arena<[T]> {
     /// If this value has not previously been interned, then `intern` will save
     /// the provided `Box<CSr>`.  Otherwise, it will free its input `Box<[T]>`
     /// and return a pointer to the `[T]` previously saved.
+    #[inline]
     pub fn intern_box(&self, val: Box<[T]>) -> ArenaIntern<[T]> {
         self.intern_from_owned(val)
     }
@@ -377,12 +394,14 @@ impl<T: Eq + Hash + ?Sized> Arena<T> {
 }
 
 impl<T> Default for Arena<T> {
+    #[inline]
     fn default() -> Self {
         Self::new()
     }
 }
 
 impl<'a, T: ?Sized> AsRef<T> for ArenaIntern<'a, T> {
+    #[inline(always)]
     fn as_ref(&self) -> &T {
         self.pointer
     }
@@ -390,12 +409,14 @@ impl<'a, T: ?Sized> AsRef<T> for ArenaIntern<'a, T> {
 
 impl<'a, T: ?Sized> std::ops::Deref for ArenaIntern<'a, T> {
     type Target = T;
+    #[inline(always)]
     fn deref(&self) -> &Self::Target {
         self.as_ref()
     }
 }
 
 impl<'a, T: ?Sized> ArenaIntern<'a, T> {
+    #[inline(always)]
     fn get_pointer(&self) -> *const T {
         self.pointer as *const T
     }
@@ -454,6 +475,7 @@ impl<'a, T: ?Sized> ArenaIntern<'a, T> {
     ///     }
     /// }
     /// ```
+    #[inline(always)]
     pub fn into_ref(self) -> &'a T {
         self.pointer
     }
@@ -465,12 +487,14 @@ impl<'a, T: ?Sized> ArenaIntern<'a, T> {
 /// value, but it *is* observable, since you could compare the
 /// hash of the pointer with hash of the data itself.
 impl<'a, T: ?Sized> Hash for ArenaIntern<'a, T> {
+    #[inline]
     fn hash<H: Hasher>(&self, state: &mut H) {
         self.get_pointer().hash(state);
     }
 }
 
 impl<'a, T: ?Sized> PartialEq for ArenaIntern<'a, T> {
+    #[inline]
     fn eq(&self, other: &Self) -> bool {
         std::ptr::eq(self.get_pointer(), other.get_pointer())
     }
@@ -481,12 +505,14 @@ impl<'a, T: ?Sized> Eq for ArenaIntern<'a, T> {}
 // create_impls_no_new!(ArenaIntern, arenaintern_impl_tests, ['a], [Eq, Hash], [Eq, Hash]);
 
 impl<'a, T: std::fmt::Debug + ?Sized> std::fmt::Debug for ArenaIntern<'a, T> {
+    #[inline]
     fn fmt(&self, f: &mut std::fmt::Formatter) -> Result<(), std::fmt::Error> {
         self.as_ref().fmt(f)
     }
 }
 
 impl<'a, T: std::fmt::Display + ?Sized> std::fmt::Display for ArenaIntern<'a, T> {
+    #[inline]
     fn fmt(&self, f: &mut std::fmt::Formatter) -> Result<(), std::fmt::Error> {
         self.as_ref().fmt(f)
     }
