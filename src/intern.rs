@@ -3,9 +3,11 @@ use super::boxedset;
 use boxedset::HashSet;
 use std::borrow::Borrow;
 use std::convert::AsRef;
+use std::ffi::OsStr;
 use std::fmt::{Debug, Display, Pointer};
 use std::hash::{Hash, Hasher};
 use std::ops::Deref;
+use std::path::Path;
 
 use super::container;
 
@@ -326,6 +328,22 @@ impl<T: ?Sized> AsRef<T> for Intern<T> {
         self.pointer
     }
 }
+
+macro_rules! impl_as_ref {
+    ($from:ty => $to:ty) => {
+        impl AsRef<$to> for Intern<$from> {
+            #[inline(always)]
+            fn as_ref(&self) -> &$to {
+                self.pointer.as_ref()
+            }
+        }
+    };
+}
+
+impl_as_ref!(str => OsStr);
+impl_as_ref!(str => Path);
+impl_as_ref!(OsStr => Path);
+impl_as_ref!(Path => OsStr);
 
 impl<T: Eq + Hash + Send + Sync + ?Sized> Deref for Intern<T> {
     type Target = T;
