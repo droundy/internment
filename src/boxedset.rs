@@ -44,6 +44,12 @@ impl<P: deepsize::DeepSizeOf + ?Sized> deepsize::DeepSizeOf for HashSet<Box<P>> 
 }
 
 impl<P: Deref + Eq + Hash> HashSet<P> {
+    pub fn contains<Q: ?Sized + Hash + Eq>(&mut self, k: &Q) -> bool
+    where
+        P: Borrow<Q>,
+    {
+        self.0.contains_key(k)
+    }
     pub fn get<'a, Q: ?Sized + Eq + Hash>(&'a self, key: &Q) -> Option<&'a P>
     where
         P::Target: Borrow<Q>,

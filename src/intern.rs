@@ -43,6 +43,16 @@ use tinyset::Fits64;
 /// assert_eq!(y, Intern::from("world"));
 /// assert_eq!(&*x, "hello"); // dereference a Intern like a pointer
 /// ```
+///
+/// Checking if an object is already interned
+///
+/// ```rust
+/// 
+/// use internment::Intern;
+///
+/// let x = Intern::new("Fortunato");
+/// assert!(Intern::is_interned("Fortunato"));
+/// ```
 #[test]
 fn like_doctest_intern() {
     let x = Intern::new("hello".to_string());
@@ -51,6 +61,9 @@ fn like_doctest_intern() {
     assert_eq!(x, Intern::from_ref("hello"));
     assert_eq!(y, Intern::from_ref("world"));
     assert_eq!(&*x, "hello"); // dereference a Intern like a pointer\
+    let _ = Intern::new("Fortunato");
+    assert!(Intern::is_interned(&"Fortunato"));
+    assert!(!Intern::is_interned(&"Montresor"));
 }
 
 #[cfg_attr(docsrs, doc(cfg(feature = "intern")))]
@@ -223,6 +236,15 @@ impl<T: Eq + Hash + Send + Sync + 'static> Intern<T> {
             m.insert(p);
             Intern { pointer: p }
         })
+    }
+    /// Check if a value already is interned.
+    ///
+    /// If this value has previously been interned, return true, else returns false
+    pub fn is_interned<'a, Q: ?Sized + Eq + Hash + 'a>(val: &'a Q) -> bool
+    where
+        &'static T: Borrow<Q> + From<&'a Q>,
+    {
+        INTERN_CONTAINERS.with(|m: &mut HashSet<&'static T>| -> bool { m.contains(val) })
     }
 }
 impl<T: Eq + Hash + Send + Sync + 'static + ?Sized> Intern<T> {
