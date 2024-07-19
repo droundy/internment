@@ -6,8 +6,10 @@ type Container<T> = DashMap<BoxRefCount<T>, (), RandomState>;
 type Untyped = &'static (dyn Any + Send + Sync + 'static);
 use std::borrow::Borrow;
 use std::convert::AsRef;
+use std::ffi::OsStr;
 use std::hash::{Hash, Hasher};
 use std::ops::Deref;
+use std::path::Path;
 use std::sync::atomic::AtomicUsize;
 use std::sync::atomic::Ordering;
 
@@ -303,6 +305,23 @@ impl<T: ?Sized + Send + Sync + Hash + Eq> AsRef<T> for ArcIntern<T> {
         unsafe { &self.pointer.as_ref().data }
     }
 }
+
+macro_rules! impl_as_ref {
+    ($from:ty => $to:ty) => {
+        impl AsRef<$to> for ArcIntern<$from> {
+            #[inline(always)]
+            fn as_ref(&self) -> &$to {
+                let ptr: &$from = &*self;
+                ptr.as_ref()
+            }
+        }
+    };
+}
+
+impl_as_ref!(str => OsStr);
+impl_as_ref!(str => Path);
+impl_as_ref!(OsStr => Path);
+impl_as_ref!(Path => OsStr);
 
 impl<T: ?Sized + Eq + Hash + Send + Sync> Deref for ArcIntern<T> {
     type Target = T;
