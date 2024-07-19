@@ -14,6 +14,7 @@ use serde::{Deserialize, Deserializer, Serialize, Serializer};
 #[cfg(feature = "tinyset")]
 use tinyset::Fits64;
 
+#[cfg_attr(docsrs, doc(cfg(feature = "intern")))]
 /// A pointer to an interned object.
 ///
 /// The interned object will be held in memory indefinitely.  On the
@@ -39,10 +40,14 @@ use tinyset::Fits64;
 /// let x = Intern::new("hello".to_string());
 /// let y = Intern::<String>::from_ref("world");
 /// assert_ne!(x, y);
-/// assert_eq!(x, Intern::from("hello"));
-/// assert_eq!(y, Intern::from("world"));
+/// assert_eq!(x, Intern::from_ref("hello"));
+/// assert_eq!(y, Intern::from_ref("world"));
 /// assert_eq!(&*x, "hello"); // dereference a Intern like a pointer
 /// ```
+pub struct Intern<T: 'static + ?Sized> {
+    pointer: &'static T,
+}
+
 #[test]
 fn like_doctest_intern() {
     let x = Intern::new("hello".to_string());
@@ -53,14 +58,6 @@ fn like_doctest_intern() {
     assert_eq!(&*x, "hello"); // dereference a Intern like a pointer\
 }
 
-#[cfg_attr(docsrs, doc(cfg(feature = "intern")))]
-/// A pointer to an interned object
-///
-/// An `Intern` points to an object that has been leaked and may be used in any
-/// thread without locking.
-pub struct Intern<T: 'static + ?Sized> {
-    pointer: &'static T,
-}
 
 #[cfg(feature = "deepsize")]
 impl<T: 'static + ?Sized> deepsize::DeepSizeOf for Intern<T> {
