@@ -1,3 +1,9 @@
+* 0.8.5 - ???
+
+    - Added `AsRef` implementations for `OsStr` and `Path` (thanks @GrigorenkoPV).
+
+
+
 * 0.8.4 - June 22, 2024
 
     - Fixed `DeepSizeOf` impl, thanks @gmryuuko.
