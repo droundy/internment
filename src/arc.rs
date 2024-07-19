@@ -293,6 +293,7 @@ impl<T: ?Sized + Eq + Hash + Send + Sync> Drop for ArcIntern<T> {
             // removed is declared before m, so the mutex guard will be
             // dropped *before* the removed content is dropped, since it
             // might need to lock the mutex.
+            #[allow(clippy::needless_late_init)]
             let _remove;
             let m = Self::get_container();
             _remove = m.remove(unsafe { self.pointer.as_ref() });
@@ -355,7 +356,7 @@ impl<T: ?Sized + Eq + Hash + Send + Sync> Hash for ArcIntern<T> {
 
 impl<T: ?Sized + Eq + Hash + Send + Sync> PartialEq for ArcIntern<T> {
     fn eq(&self, other: &Self) -> bool {
-        self.get_pointer() == other.get_pointer()
+        std::ptr::eq(self.get_pointer(), other.get_pointer())
     }
 }
 impl<T: ?Sized + Eq + Hash + Send + Sync> Eq for ArcIntern<T> {}

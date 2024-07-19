@@ -65,9 +65,7 @@ impl<'a, T: ?Sized + deepsize::DeepSizeOf> deepsize::DeepSizeOf for ArenaIntern<
 
 impl<'a, T: ?Sized> Clone for ArenaIntern<'a, T> {
     fn clone(&self) -> Self {
-        ArenaIntern {
-            pointer: self.pointer,
-        }
+        *self
     }
 }
 impl<'a, T: ?Sized> Copy for ArenaIntern<'a, T> {}
@@ -150,7 +148,7 @@ impl Arena<str> {
     /// If this value has not previously been interned, then `intern` will
     /// allocate a spot for the value on the heap.  Otherwise, it will return a
     /// pointer to the `str` previously allocated.
-    pub fn intern<'a, 'b>(&'a self, val: &'b str) -> ArenaIntern<'a, str> {
+    pub fn intern<'a>(&'a self, val: &str) -> ArenaIntern<'a, str> {
         self.intern_ref(val)
     }
     /// Intern a `String` as `ArenaIntern<str>`.
@@ -185,7 +183,7 @@ impl Arena<std::ffi::CStr> {
     /// let y = arena.intern(std::ffi::CString::new("hello").unwrap().as_c_str());
     /// assert_eq!(x, y);
     /// ```
-    pub fn intern<'a, 'b>(&'a self, val: &'b std::ffi::CStr) -> ArenaIntern<'a, std::ffi::CStr> {
+    pub fn intern<'a>(&'a self, val: &std::ffi::CStr) -> ArenaIntern<'a, std::ffi::CStr> {
         self.intern_ref(val)
     }
     /// Intern a `CString` as `ArenaIntern<CStr>`.
@@ -238,7 +236,7 @@ impl Arena<std::ffi::OsStr> {
     /// let y = arena.intern(std::ffi::OsStr::new("hello"));
     /// assert_eq!(x, y);
     /// ```
-    pub fn intern<'a, 'b>(&'a self, val: &'b std::ffi::OsStr) -> ArenaIntern<'a, std::ffi::OsStr> {
+    pub fn intern<'a>(&'a self, val: &std::ffi::OsStr) -> ArenaIntern<'a, std::ffi::OsStr> {
         self.intern_ref(val)
     }
     /// Intern a `OsString` as `ArenaIntern<OsStr>`.
@@ -291,7 +289,7 @@ impl Arena<std::path::Path> {
     /// let y = arena.intern(std::path::Path::new("hello"));
     /// assert_eq!(x, y);
     /// ```
-    pub fn intern<'a, 'b>(&'a self, val: &'b std::path::Path) -> ArenaIntern<'a, std::path::Path> {
+    pub fn intern<'a>(&'a self, val: &std::path::Path) -> ArenaIntern<'a, std::path::Path> {
         self.intern_ref(val)
     }
     /// Intern a `PathBuf` as `ArenaIntern<Path>`.
@@ -335,7 +333,7 @@ impl<T: Eq + Hash + Copy> Arena<[T]> {
     /// If this value has not previously been interned, then `intern` will
     /// allocate a spot for the value on the heap.  Otherwise, it will return a
     /// pointer to the `[T]` previously allocated.
-    pub fn intern<'a, 'b>(&'a self, val: &'b [T]) -> ArenaIntern<'a, [T]> {
+    pub fn intern<'a>(&'a self, val: &[T]) -> ArenaIntern<'a, [T]> {
         self.intern_ref(val)
     }
     /// Intern a `Vec<T>` as `ArenaIntern<[T]>`.
@@ -474,7 +472,7 @@ impl<'a, T: ?Sized> Hash for ArenaIntern<'a, T> {
 
 impl<'a, T: ?Sized> PartialEq for ArenaIntern<'a, T> {
     fn eq(&self, other: &Self) -> bool {
-        self.get_pointer() == other.get_pointer()
+        std::ptr::eq(self.get_pointer(), other.get_pointer())
     }
 }
 impl<'a, T: ?Sized> Eq for ArenaIntern<'a, T> {}
