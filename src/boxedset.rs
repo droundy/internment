@@ -7,11 +7,13 @@ use std::{
 pub struct HashSet<P>(HashMap<P, ()>);
 
 impl<P: Deref + Eq + Hash> Default for HashSet<P> {
+    #[inline]
     fn default() -> Self {
         HashSet::new()
     }
 }
 impl<P> HashSet<P> {
+    #[inline]
     pub fn new() -> Self {
         HashSet(HashMap::new())
     }
@@ -71,17 +73,21 @@ impl<P: Deref + Eq + Hash> HashSet<P> {
         // };
         // let x = self.0.raw_entry_mut().from_hash(hash, |k| <P::Target as Borrow<Q>>::borrow(k) == key)
     }
+    #[inline]
     pub fn insert(&mut self, x: P) {
         self.0.insert(x, ());
     }
+    #[inline]
     pub fn len(&self) -> usize {
         self.0.len()
     }
     #[allow(dead_code)] // maybe unused without `deepsize` feature
+    #[inline]
     pub fn capacity(&self) -> usize {
         self.0.capacity()
     }
     #[cfg(feature = "bench")]
+    #[inline]
     pub fn clear(&mut self) {
         self.0.clear()
     }

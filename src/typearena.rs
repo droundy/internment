@@ -151,6 +151,7 @@ fn has_niche() {
 }
 
 impl<T: ?Sized> Clone for Intern<T> {
+    #[inline(always)]
     fn clone(&self) -> Self {
         *self
     }
@@ -161,6 +162,7 @@ impl<T: ?Sized> Clone for Intern<T> {
 impl<T: ?Sized> Copy for Intern<T> {}
 
 impl<T: ?Sized> Intern<T> {
+    #[inline(always)]
     fn get_pointer(&self) -> *const T {
         self.pointer as *const T
     }
@@ -169,6 +171,7 @@ impl<T: ?Sized> Intern<T> {
 macro_rules! from_via_box {
     ($t:ty) => {
         impl From<&$t> for Intern<$t> {
+            #[inline]
             fn from(val: &$t) -> Self {
                 Self::via_box(val)
             }
@@ -179,6 +182,7 @@ from_via_box!(std::ffi::CStr);
 from_via_box!(str);
 from_via_box!(std::path::Path);
 impl<T: Eq + Hash + Send + Sync + 'static + Copy> From<&[T]> for Intern<[T]> {
+    #[inline]
     fn from(val: &[T]) -> Self {
         Self::via_box(val)
     }
@@ -186,6 +190,7 @@ impl<T: Eq + Hash + Send + Sync + 'static + Copy> From<&[T]> for Intern<[T]> {
 
 impl<T: Eq + Hash + Send + Sync + 'static + Copy, const N: usize> From<&[T; N]> for Intern<[T]> {
     /// Converts a `[T; N]` into a `Intern<[T]>`
+    #[inline]
     fn from(val: &[T; N]) -> Self {
         Self::via_box(val)
     }
@@ -279,6 +284,7 @@ impl<T: Any + Eq + Hash + Send + Sync + ?Sized> Intern<T> {
     /// Get a long-lived reference to the data pointed to by an `Intern`, which
     /// is never freed from the intern pool.
     #[allow(clippy::should_implement_trait)]
+    #[inline(always)]
     pub fn as_ref(self) -> &'static T {
         self.pointer
     }
@@ -364,6 +370,7 @@ fn test_intern_set64() {
 }
 
 impl<T: ?Sized> AsRef<T> for Intern<T> {
+    #[inline(always)]
     fn as_ref(&self) -> &T {
         self.pointer
     }
@@ -387,18 +394,21 @@ impl_as_ref!(Path => OsStr);
 
 impl<T: Eq + Hash + Send + Sync + ?Sized> Deref for Intern<T> {
     type Target = T;
+    #[inline(always)]
     fn deref(&self) -> &T {
         self.as_ref()
     }
 }
 
 impl<T: Eq + Hash + Send + Sync + Display + ?Sized> Display for Intern<T> {
+    #[inline]
     fn fmt(&self, f: &mut std::fmt::Formatter) -> Result<(), std::fmt::Error> {
         self.deref().fmt(f)
     }
 }
 
 impl<T: Eq + Hash + Send + Sync + ?Sized> Pointer for Intern<T> {
+    #[inline]
     fn fmt(&self, f: &mut std::fmt::Formatter) -> Result<(), std::fmt::Error> {
         Pointer::fmt(&self.get_pointer(), f)
     }
@@ -410,12 +420,14 @@ impl<T: Eq + Hash + Send + Sync + ?Sized> Pointer for Intern<T> {
 /// value, but it *is* observable, since you could compare the
 /// hash of the pointer with hash of the data itself.
 impl<T: Eq + Hash + Send + Sync + ?Sized> Hash for Intern<T> {
+    #[inline]
     fn hash<H: Hasher>(&self, state: &mut H) {
         self.get_pointer().hash(state);
     }
 }
 
 impl<T: Eq + Hash + Send + Sync + ?Sized> PartialEq for Intern<T> {
+    #[inline(always)]
     fn eq(&self, other: &Self) -> bool {
         std::ptr::eq(self.get_pointer(), other.get_pointer())
     }
@@ -423,23 +435,29 @@ impl<T: Eq + Hash + Send + Sync + ?Sized> PartialEq for Intern<T> {
 impl<T: Eq + Hash + Send + Sync + ?Sized> Eq for Intern<T> {}
 
 impl<T: Eq + Hash + Send + Sync + PartialOrd + ?Sized> PartialOrd for Intern<T> {
+    #[inline]
     fn partial_cmp(&self, other: &Self) -> Option<std::cmp::Ordering> {
         self.as_ref().partial_cmp(other)
     }
+    #[inline]
     fn lt(&self, other: &Self) -> bool {
         self.as_ref().lt(other)
     }
+    #[inline]
     fn le(&self, other: &Self) -> bool {
         self.as_ref().le(other)
     }
+    #[inline]
     fn gt(&self, other: &Self) -> bool {
         self.as_ref().gt(other)
     }
+    #[inline]
     fn ge(&self, other: &Self) -> bool {
         self.as_ref().ge(other)
     }
 }
 impl<T: Eq + Hash + Send + Sync + Ord + ?Sized> Ord for Intern<T> {
+    #[inline]
     fn cmp(&self, other: &Self) -> std::cmp::Ordering {
         self.as_ref().cmp(other)
     }
@@ -448,17 +466,20 @@ impl<T: Eq + Hash + Send + Sync + Ord + ?Sized> Ord for Intern<T> {
 #[cfg_attr(docsrs, doc(cfg(feature = "serde")))]
 #[cfg(feature = "serde")]
 impl<T: Eq + Hash + Send + Sync + Serialize> Serialize for Intern<T> {
+    #[inline]
     fn serialize<S: Serializer>(&self, serializer: S) -> Result<S::Ok, S::Error> {
         self.as_ref().serialize(serializer)
     }
 }
 
 impl<T: Eq + Hash + Send + Sync + 'static> From<T> for Intern<T> {
+    #[inline]
     fn from(t: T) -> Self {
         Intern::new(t)
     }
 }
 impl<T: Eq + Hash + Send + Sync + Default + 'static> Default for Intern<T> {
+    #[inline]
     fn default() -> Self {
         Intern::new(Default::default())
     }
@@ -467,6 +488,7 @@ impl<T: Eq + Hash + Send + Sync + Default + 'static> Default for Intern<T> {
 #[cfg_attr(docsrs, doc(cfg(feature = "serde")))]
 #[cfg(feature = "serde")]
 impl<'de, T: Eq + Hash + Send + Sync + 'static + Deserialize<'de>> Deserialize<'de> for Intern<T> {
+    #[inline]
     fn deserialize<D: Deserializer<'de>>(deserializer: D) -> Result<Self, D::Error> {
         T::deserialize(deserializer).map(|x: T| Self::new(x))
     }

@@ -51,6 +51,7 @@ pub struct ArcIntern<T: ?Sized + Eq + Hash + Send + Sync + 'static> {
 
 #[cfg(feature = "deepsize")]
 impl<T: ?Sized + Eq + Hash + Send + Sync + 'static> deepsize::DeepSizeOf for ArcIntern<T> {
+    #[inline(always)]
     fn deep_size_of_children(&self, _context: &mut deepsize::Context) -> usize {
         0
     }
@@ -82,11 +83,13 @@ pub(crate) struct RefCount<T: ?Sized> {
 
 impl<T: ?Sized + Eq> Eq for RefCount<T> {}
 impl<T: ?Sized + PartialEq> PartialEq for RefCount<T> {
+    #[inline]
     fn eq(&self, other: &Self) -> bool {
         self.data == other.data
     }
 }
 impl<T: ?Sized + Hash> Hash for RefCount<T> {
+    #[inline]
     fn hash<H: Hasher>(&self, hasher: &mut H) {
         self.data.hash(hasher)
     }
@@ -95,35 +98,41 @@ impl<T: ?Sized + Hash> Hash for RefCount<T> {
 #[derive(Eq, PartialEq)]
 pub(crate) struct BoxRefCount<T: ?Sized>(pub Box<RefCount<T>>);
 impl<T: ?Sized + Hash> Hash for BoxRefCount<T> {
+    #[inline]
     fn hash<H: Hasher>(&self, hasher: &mut H) {
         self.0.data.hash(hasher)
     }
 }
 
 impl<T> BoxRefCount<T> {
+    #[inline(always)]
     fn into_inner(self) -> T {
         self.0.data
     }
 }
 
 impl<T: ?Sized> Borrow<T> for BoxRefCount<T> {
+    #[inline(always)]
     fn borrow(&self) -> &T {
         &self.0.data
     }
 }
 impl<T: ?Sized> Borrow<RefCount<T>> for BoxRefCount<T> {
+    #[inline(always)]
     fn borrow(&self) -> &RefCount<T> {
         &self.0
     }
 }
 impl<T: ?Sized> Deref for BoxRefCount<T> {
     type Target = T;
+    #[inline(always)]
     fn deref(&self) -> &Self::Target {
         &self.0.data
     }
 }
 
 impl<T: ?Sized + Eq + Hash + Send + Sync + 'static> ArcIntern<T> {
+    #[inline(always)]
     fn get_pointer(&self) -> *const RefCount<T> {
         self.pointer.as_ptr()
     }
@@ -302,6 +311,7 @@ impl<T: ?Sized + Eq + Hash + Send + Sync> Drop for ArcIntern<T> {
 }
 
 impl<T: ?Sized + Send + Sync + Hash + Eq> AsRef<T> for ArcIntern<T> {
+    #[inline(always)]
     fn as_ref(&self) -> &T {
         unsafe { &self.pointer.as_ref().data }
     }
@@ -326,18 +336,21 @@ impl_as_ref!(Path => OsStr);
 
 impl<T: ?Sized + Eq + Hash + Send + Sync> Deref for ArcIntern<T> {
     type Target = T;
+    #[inline(always)]
     fn deref(&self) -> &T {
         self.as_ref()
     }
 }
 
 impl<T: ?Sized + Eq + Hash + Send + Sync + Display> Display for ArcIntern<T> {
+    #[inline]
     fn fmt(&self, f: &mut std::fmt::Formatter) -> Result<(), std::fmt::Error> {
         self.deref().fmt(f)
     }
 }
 
 impl<T: ?Sized + Eq + Hash + Send + Sync> Pointer for ArcIntern<T> {
+    #[inline]
     fn fmt(&self, f: &mut std::fmt::Formatter) -> Result<(), std::fmt::Error> {
         Pointer::fmt(&self.get_pointer(), f)
     }
@@ -349,12 +362,14 @@ impl<T: ?Sized + Eq + Hash + Send + Sync> Pointer for ArcIntern<T> {
 /// value, but it *is* observable, since you could compare the
 /// hash of the pointer with hash of the data itself.
 impl<T: ?Sized + Eq + Hash + Send + Sync> Hash for ArcIntern<T> {
+    #[inline]
     fn hash<H: Hasher>(&self, state: &mut H) {
         self.get_pointer().hash(state);
     }
 }
 
 impl<T: ?Sized + Eq + Hash + Send + Sync> PartialEq for ArcIntern<T> {
+    #[inline(always)]
     fn eq(&self, other: &Self) -> bool {
         std::ptr::eq(self.get_pointer(), other.get_pointer())
     }
@@ -362,23 +377,29 @@ impl<T: ?Sized + Eq + Hash + Send + Sync> PartialEq for ArcIntern<T> {
 impl<T: ?Sized + Eq + Hash + Send + Sync> Eq for ArcIntern<T> {}
 
 impl<T: ?Sized + Eq + Hash + Send + Sync + PartialOrd> PartialOrd for ArcIntern<T> {
+    #[inline]
     fn partial_cmp(&self, other: &Self) -> Option<std::cmp::Ordering> {
         self.as_ref().partial_cmp(other)
     }
+    #[inline]
     fn lt(&self, other: &Self) -> bool {
         self.as_ref().lt(other)
     }
+    #[inline]
     fn le(&self, other: &Self) -> bool {
         self.as_ref().le(other)
     }
+    #[inline]
     fn gt(&self, other: &Self) -> bool {
         self.as_ref().gt(other)
     }
+    #[inline]
     fn ge(&self, other: &Self) -> bool {
         self.as_ref().ge(other)
     }
 }
 impl<T: ?Sized + Eq + Hash + Send + Sync + Ord> Ord for ArcIntern<T> {
+    #[inline]
     fn cmp(&self, other: &Self) -> std::cmp::Ordering {
         self.as_ref().cmp(other)
     }
@@ -387,18 +408,21 @@ impl<T: ?Sized + Eq + Hash + Send + Sync + Ord> Ord for ArcIntern<T> {
 #[cfg_attr(docsrs, doc(cfg(feature = "serde")))]
 #[cfg(feature = "serde")]
 impl<T: ?Sized + Eq + Hash + Send + Sync + Serialize> Serialize for ArcIntern<T> {
+    #[inline]
     fn serialize<S: Serializer>(&self, serializer: S) -> Result<S::Ok, S::Error> {
         self.as_ref().serialize(serializer)
     }
 }
 
 impl<T: Eq + Hash + Send + Sync + 'static> From<T> for ArcIntern<T> {
+    #[inline]
     fn from(t: T) -> Self {
         ArcIntern::new(t)
     }
 }
 
 impl<T: Eq + Hash + Send + Sync + Default + 'static> Default for ArcIntern<T> {
+    #[inline]
     fn default() -> Self {
         ArcIntern::new(Default::default())
     }
@@ -410,6 +434,7 @@ impl<'de, T> Deserialize<'de> for ArcIntern<T>
 where
     T: Eq + Hash + Send + Sync + 'static + Deserialize<'de>,
 {
+    #[inline]
     fn deserialize<D: Deserializer<'de>>(deserializer: D) -> Result<Self, D::Error> {
         T::deserialize(deserializer).map(|x: T| Self::new(x))
     }
