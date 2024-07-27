@@ -41,11 +41,12 @@ append-only-vec = { version = "0.1.2", optional = true }
 
 [features]
 
-arc = ["ahash", "dashmap", "once_cell"]
-bench = ["arc", "arc-interner", "arena", "memorable-wordlist", "append-only-vec"]
+arc = ["dep:ahash", "dep:dashmap", "dep:once_cell"]
+bench = ["arc", "arena", "_experimental-new-intern", "dep:memorable-wordlist"]
 arena = []
 intern = []
 default = ["intern"]
+_experimental-new-intern = ["dep:append-only-vec"]
 
 [dev-dependencies]
 quickcheck = "^0.9.2"
