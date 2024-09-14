@@ -58,6 +58,9 @@ fn like_doctest_intern() {
     assert_eq!(x, Intern::from_ref("hello"));
     assert_eq!(y, Intern::from_ref("world"));
     assert_eq!(&*x, "hello"); // dereference a Intern like a pointer\
+    let _ = Intern::<String>::from_ref("Fortunato");
+    assert!(Intern::<String>::is_interned("Fortunato"));
+    assert!(!Intern::<String>::is_interned("Montresor"));
 }
 
 #[cfg(feature = "deepsize")]
@@ -244,6 +247,28 @@ impl<T: Eq + Hash + Send + Sync + 'static + ?Sized> Intern<T> {
     #[cfg(feature = "bench")]
     pub fn benchmarking_only_clear_interns() {
         INTERN_CONTAINERS.with(|m: &mut HashSet<&'static T>| m.clear())
+    }
+    /// Check if a value already is interned.
+    ///
+    /// If this value has previously been interned, return true, else returns false/// Checking if an object is already interned
+    ///
+    /// ```rust
+    /// 
+    /// use internment::Intern;
+    ///
+    /// assert!(!Intern::<String>::is_interned("Fortunato"));
+    /// let x = Intern::new("Fortunato".to_string());
+    /// assert!(Intern::<String>::is_interned("Fortunato"));
+    ///
+    /// assert!(!Intern::<str>::is_interned("Fortunato"));
+    /// let x: Intern<str> = "Fortunato".into();
+    /// assert!(Intern::<str>::is_interned("Fortunato"));
+    /// ```
+    pub fn is_interned<'a, Q: ?Sized + Eq + Hash + 'a>(val: &'a Q) -> bool
+    where
+        T: Borrow<Q>,
+    {
+        INTERN_CONTAINERS.with(|m: &mut HashSet<&'static T>| -> bool { m.get(val).is_some() })
     }
 }
 
