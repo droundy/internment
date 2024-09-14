@@ -2,6 +2,7 @@
 
     - Added `AsRef` implementations for `OsStr` and `Path` (thanks @GrigorenkoPV).
 
+    - Added `is_interned` (thanks @DanielJoyce).
 
 
 * 0.8.4 - June 22, 2024
