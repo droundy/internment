@@ -1,7 +1,8 @@
 use core::ops::Deref;
 use hashbrown::HashMap;
 use std::{
-    borrow::Borrow, hash::{BuildHasher, Hash, Hasher}
+    borrow::Borrow,
+    hash::{BuildHasher, Hash, Hasher},
 };
 pub struct HashSet<P>(HashMap<P, ()>);
 

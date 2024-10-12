@@ -172,6 +172,13 @@ impl<T: ?Sized + Eq + Hash + Send + Sync + 'static> ArcIntern<T> {
         };
         (*boxed).downcast_ref().unwrap()
     }
+    /// Remove excess capacity to reduce memory usage.
+    ///
+    /// This can free up internal storage that is no longer needed due to
+    /// `ArcIntern<T>` having been dropped.
+    pub fn shrink_to_fit() {
+        Self::get_container().shrink_to_fit()
+    }
     /// Intern a value from a reference with atomic reference counting.
     ///
     /// If this value has not previously been
@@ -602,4 +609,20 @@ fn just_dashmap() {
             panic!("Should not exist yet");
         }
     };
+}
+
+#[test]
+fn test_shrink_to_fit() {
+    #[derive(Debug, PartialEq, Eq, Hash)]
+    struct Value(usize);
+    assert_eq!(0, ArcIntern::<Value>::get_container().capacity());
+    {
+        let v = ArcIntern::new(Value(0));
+        assert!(ArcIntern::<Value>::get_container().capacity() >= 1);
+        ArcIntern::<Value>::shrink_to_fit();
+        assert!(ArcIntern::<Value>::get_container().capacity() >= 1);
+    }
+    assert!(ArcIntern::<Value>::get_container().capacity() >= 1);
+    ArcIntern::<Value>::shrink_to_fit();
+    assert_eq!(0, ArcIntern::<Value>::get_container().capacity());
 }

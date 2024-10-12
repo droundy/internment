@@ -253,7 +253,7 @@ impl<T: Eq + Hash + Send + Sync + 'static + ?Sized> Intern<T> {
     /// If this value has previously been interned, return true, else returns false/// Checking if an object is already interned
     ///
     /// ```rust
-    /// 
+    ///
     /// use internment::Intern;
     ///
     /// assert!(!Intern::<String>::is_interned("Fortunato"));
