@@ -19,7 +19,7 @@ fn bench_get_container(c: &mut Criterion) {
         b.iter_batched(
             || {},
             |_| {
-                let mut ans = Vec::with_capacity(RANGE);
+                let mut ans = Vec::with_capacity(ITER);
                 for idx in 0..ITER {
                     let s = ArcIntern::<String>::new(format!("short-{}", idx % RANGE));
                     ans.push(s);
@@ -36,7 +36,7 @@ fn bench_get_container(c: &mut Criterion) {
         b.iter_batched(
             || {},
             |_| {
-                let mut ans = Vec::with_capacity(RANGE);
+                let mut ans = Vec::with_capacity(ITER);
                 for idx in 0..ITER {
                     let s = ArcIntern::<NewType<String>>::new(NewType(format!(
                         "short-{}",
@@ -54,7 +54,7 @@ fn bench_get_container(c: &mut Criterion) {
         b.iter_batched(
             || {},
             |_| {
-                let mut ans = Vec::with_capacity(RANGE);
+                let mut ans = Vec::with_capacity(ITER);
                 for idx in 0..ITER {
                     let s = ArcIntern::<usize>::new(idx % RANGE);
                     ans.push(s);
@@ -68,7 +68,7 @@ fn bench_get_container(c: &mut Criterion) {
         b.iter_batched(
             || {},
             |_| {
-                let mut ans = Vec::with_capacity(RANGE);
+                let mut ans = Vec::with_capacity(ITER);
                 for idx in 0..ITER {
                     let s = ArcIntern::<NewType<usize>>::new(NewType(idx % RANGE));
                     ans.push(s);
