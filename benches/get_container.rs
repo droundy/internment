@@ -30,6 +30,35 @@ fn bench_get_container(c: &mut Criterion) {
             criterion::BatchSize::PerIteration,
         );
     });
+    group.bench_function(BenchmarkId::new("String", "short-from_ref"), |b| {
+        b.iter_batched(
+            || {},
+            |_| {
+                let mut ans = Vec::with_capacity(ITER);
+                for idx in 0..ITER {
+                    let s = ArcIntern::<String>::from_ref(&vals[idx % RANGE]);
+
+                    ans.push(s);
+                }
+            },
+            criterion::BatchSize::PerIteration,
+        );
+    });
+
+    group.bench_function(BenchmarkId::new("String", "short-from_str"), |b| {
+        b.iter_batched(
+            || {},
+            |_| {
+                let mut ans = Vec::with_capacity(ITER);
+                for idx in 0..ITER {
+                    let s = ArcIntern::<String>::from_str(&vals[idx % RANGE]);
+
+                    ans.push(s);
+                }
+            },
+            criterion::BatchSize::PerIteration,
+        );
+    });
     group.finish();
 
     let new_vals: Vec<_> = (0..RANGE)
