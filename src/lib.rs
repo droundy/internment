@@ -45,6 +45,13 @@
 // Enable the `doc_cfg` feature when the `docsrs` configuration attribute is
 // defined
 #![cfg_attr(docsrs, feature(doc_cfg))]
+#![no_std]
+
+#[cfg(feature = "std")]
+extern crate std;
+
+#[cfg(feature = "alloc")]
+extern crate alloc;
 
 mod boxedset;
 
