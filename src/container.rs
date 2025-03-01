@@ -1,7 +1,14 @@
-use std::any::Any;
-use std::any::TypeId;
-use std::hash::{Hash, Hasher};
-use std::sync::Mutex;
+use alloc::{boxed::Box, vec::Vec};
+use core::{
+    any::{Any, TypeId},
+    hash::{Hash, Hasher},
+    ops::DerefMut,
+};
+
+#[cfg(not(any(feature = "std", feature = "spin")))]
+compile_error!(
+    "Require either the `std` or spin `features` to be enabled when using the `intern` feature"
+);
 
 pub struct TypeHolderSend(Vec<AnySend>);
 
@@ -26,16 +33,46 @@ impl TypeHolderSend {
     }
 }
 
+struct TypeHolderSendCell {
+    #[cfg(feature = "std")]
+    inner: std::sync::Mutex<TypeHolderSend>,
+    #[cfg(all(feature = "spin", not(feature = "std")))]
+    inner: spin::mutex::Mutex<TypeHolderSend>,
+}
+
+impl TypeHolderSendCell {
+    const fn new() -> Self {
+        Self {
+            #[cfg(feature = "std")]
+            inner: std::sync::Mutex::new(TypeHolderSend::new()),
+            #[cfg(all(feature = "spin", not(feature = "std")))]
+            inner: spin::mutex::Mutex::new(TypeHolderSend::new()),
+        }
+    }
+
+    fn get_mut(&self) -> impl DerefMut<Target = TypeHolderSend> + '_ {
+        #[cfg(feature = "std")]
+        return self
+            .inner
+            .lock()
+            .unwrap_or_else(std::sync::PoisonError::into_inner);
+
+        #[cfg(all(feature = "spin", not(feature = "std")))]
+        return self.inner.lock();
+    }
+}
+
 const INTERN_CONTAINER_COUNT: usize = 32;
 pub struct Arena {
-    containers: [Mutex<TypeHolderSend>; INTERN_CONTAINER_COUNT],
+    containers: [TypeHolderSendCell; INTERN_CONTAINER_COUNT],
 }
 
 impl Arena {
     pub const fn new() -> Self {
-        const EMPTY: Mutex<TypeHolderSend> = Mutex::new(TypeHolderSend::new());
+        #[allow(clippy::declare_interior_mutable_const)]
+        const CONTAINER: TypeHolderSendCell = TypeHolderSendCell::new();
         Arena {
-            containers: [EMPTY; INTERN_CONTAINER_COUNT],
+            containers: [CONTAINER; INTERN_CONTAINER_COUNT],
         }
     }
 
@@ -81,8 +118,7 @@ impl Arena {
 
         f(
             self.containers[hash_of_type::<T>() as usize % INTERN_CONTAINER_COUNT]
-                .lock()
-                .unwrap()
+                .get_mut()
                 .get_type_mut(),
         )
     }

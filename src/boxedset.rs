@@ -1,9 +1,13 @@
-use core::ops::Deref;
-use hashbrown::HashMap;
-use std::{
+use core::{
     borrow::Borrow,
     hash::{BuildHasher, Hash, Hasher},
+    ops::Deref,
 };
+use hashbrown::HashMap;
+
+#[cfg(all(feature = "deepsize", feature = "alloc"))]
+use alloc::boxed::Box;
+
 pub struct HashSet<P>(HashMap<P, ()>);
 
 impl<P: Deref + Eq + Hash> Default for HashSet<P> {
@@ -22,24 +26,24 @@ impl<P> HashSet<P> {
 #[cfg(feature = "deepsize")]
 impl<P: deepsize::DeepSizeOf> deepsize::DeepSizeOf for HashSet<&'static P> {
     fn deep_size_of_children(&self, context: &mut deepsize::Context) -> usize {
-        let pointers = self.0.capacity() * std::mem::size_of::<&'static P>();
+        let pointers = self.0.capacity() * core::mem::size_of::<&'static P>();
         let heap_memory = self
             .0
             .keys()
-            .map(|n| (**n).deep_size_of_children(context) + std::mem::size_of::<P>())
+            .map(|n| (**n).deep_size_of_children(context) + core::mem::size_of::<P>())
             .sum::<usize>();
         pointers + heap_memory
     }
 }
 
-#[cfg(feature = "deepsize")]
+#[cfg(all(feature = "deepsize", feature = "alloc"))]
 impl<P: deepsize::DeepSizeOf + ?Sized> deepsize::DeepSizeOf for HashSet<Box<P>> {
     fn deep_size_of_children(&self, context: &mut deepsize::Context) -> usize {
-        let pointers = self.0.capacity() * std::mem::size_of::<Box<P>>();
+        let pointers = self.0.capacity() * core::mem::size_of::<Box<P>>();
         let heap_memory = self
             .0
             .keys()
-            .map(|n| (**n).deep_size_of_children(context) + std::mem::size_of_val(&**n))
+            .map(|n| (**n).deep_size_of_children(context) + core::mem::size_of_val(&**n))
             .sum::<usize>();
         pointers + heap_memory
     }

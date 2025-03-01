@@ -1,22 +1,28 @@
 #![deny(missing_docs)]
 use ahash::RandomState;
-use std::any::{Any, TypeId};
-use std::fmt::{Debug, Display, Pointer};
-type Container<T> = DashMap<BoxRefCount<T>, (), RandomState>;
-type Untyped = &'static (dyn Any + Send + Sync + 'static);
-use std::borrow::Borrow;
-use std::convert::AsRef;
-use std::ffi::OsStr;
-use std::hash::{Hash, Hasher};
-use std::ops::Deref;
-use std::path::Path;
-use std::sync::atomic::AtomicUsize;
-use std::sync::atomic::Ordering;
-
+use alloc::{boxed::Box, string::String};
+use core::{
+    any::{Any, TypeId},
+    borrow::Borrow,
+    convert::AsRef,
+    fmt::{Debug, Display, Pointer},
+    hash::{Hash, Hasher},
+    ops::Deref,
+    sync::atomic::{AtomicUsize, Ordering},
+};
 use dashmap::{mapref::entry::Entry, DashMap};
+
+#[cfg(feature = "std")]
+use std::{ffi::OsStr, path::Path};
+
+#[cfg(test)]
+use alloc::{string::ToString, vec};
 
 #[cfg(feature = "serde")]
 use serde::{Deserialize, Deserializer, Serialize, Serializer};
+
+type Container<T> = DashMap<BoxRefCount<T>, (), RandomState>;
+type Untyped = &'static (dyn Any + Send + Sync + 'static);
 
 /// A pointer to a reference-counted interned object.
 ///
@@ -46,7 +52,7 @@ use serde::{Deserialize, Deserializer, Serialize, Serializer};
 /// ```
 #[cfg_attr(docsrs, doc(cfg(feature = "arc")))]
 pub struct ArcIntern<T: ?Sized + Eq + Hash + Send + Sync + 'static> {
-    pub(crate) pointer: std::ptr::NonNull<RefCount<T>>,
+    pub(crate) pointer: core::ptr::NonNull<RefCount<T>>,
 }
 
 #[cfg(feature = "deepsize")]
@@ -64,10 +70,10 @@ pub fn deep_size_of_arc_interned<
     T: ?Sized + Eq + Hash + Send + Sync + 'static + deepsize::DeepSizeOf,
 >() -> usize {
     let x = ArcIntern::<T>::get_container();
-    let pointers = x.capacity() * std::mem::size_of::<BoxRefCount<T>>();
+    let pointers = x.capacity() * core::mem::size_of::<BoxRefCount<T>>();
     let heap_memory = x
         .iter()
-        .map(|n| std::mem::size_of::<usize>() + n.key().0.data.deep_size_of())
+        .map(|n| core::mem::size_of::<usize>() + n.key().0.data.deep_size_of())
         .sum::<usize>();
     pointers + heap_memory
 }
@@ -226,7 +232,7 @@ impl<T: Eq + Hash + Send + Sync + 'static> ArcIntern<T> {
                 if oldval != 0 {
                     // we can only use this value if the value is not about to be freed
                     return ArcIntern {
-                        pointer: std::ptr::NonNull::from(b.0.borrow()),
+                        pointer: core::ptr::NonNull::from(b.0.borrow()),
                     };
                 } else {
                     // we have encountered a race condition here.
@@ -243,7 +249,7 @@ impl<T: Eq + Hash + Send + Sync + 'static> ArcIntern<T> {
                     Entry::Vacant(e) => {
                         // We can insert, all is good
                         let p = ArcIntern {
-                            pointer: std::ptr::NonNull::from(e.key().0.borrow()),
+                            pointer: core::ptr::NonNull::from(e.key().0.borrow()),
                         };
                         e.insert(());
                         return p;
@@ -257,6 +263,7 @@ impl<T: Eq + Hash + Send + Sync + 'static> ArcIntern<T> {
             }
             // yield so that the object can finish being freed,
             // and then we will be able to intern a new copy.
+            #[cfg(feature = "std")]
             std::thread::yield_now();
         }
     }
@@ -304,7 +311,7 @@ impl<T: ?Sized + Eq + Hash + Send + Sync> Drop for ArcIntern<T> {
             // happens before decreasing the reference count, which
             // happens before this fence, which happens before the
             // deletion of the data.
-            std::sync::atomic::fence(Ordering::SeqCst);
+            core::sync::atomic::fence(Ordering::SeqCst);
 
             // removed is declared before m, so the mutex guard will be
             // dropped *before* the removed content is dropped, since it
@@ -324,6 +331,7 @@ impl<T: ?Sized + Send + Sync + Hash + Eq> AsRef<T> for ArcIntern<T> {
     }
 }
 
+#[cfg_attr(not(feature = "std"), allow(unused_macros))]
 macro_rules! impl_as_ref {
     ($from:ty => $to:ty) => {
         impl AsRef<$to> for ArcIntern<$from> {
@@ -336,9 +344,13 @@ macro_rules! impl_as_ref {
     };
 }
 
+#[cfg(feature = "std")]
 impl_as_ref!(str => OsStr);
+#[cfg(feature = "std")]
 impl_as_ref!(str => Path);
+#[cfg(feature = "std")]
 impl_as_ref!(OsStr => Path);
+#[cfg(feature = "std")]
 impl_as_ref!(Path => OsStr);
 
 impl<T: ?Sized + Eq + Hash + Send + Sync> Deref for ArcIntern<T> {
@@ -351,14 +363,14 @@ impl<T: ?Sized + Eq + Hash + Send + Sync> Deref for ArcIntern<T> {
 
 impl<T: ?Sized + Eq + Hash + Send + Sync + Display> Display for ArcIntern<T> {
     #[inline]
-    fn fmt(&self, f: &mut std::fmt::Formatter) -> Result<(), std::fmt::Error> {
+    fn fmt(&self, f: &mut core::fmt::Formatter) -> Result<(), core::fmt::Error> {
         self.deref().fmt(f)
     }
 }
 
 impl<T: ?Sized + Eq + Hash + Send + Sync> Pointer for ArcIntern<T> {
     #[inline]
-    fn fmt(&self, f: &mut std::fmt::Formatter) -> Result<(), std::fmt::Error> {
+    fn fmt(&self, f: &mut core::fmt::Formatter) -> Result<(), core::fmt::Error> {
         Pointer::fmt(&self.get_pointer(), f)
     }
 }
@@ -378,14 +390,14 @@ impl<T: ?Sized + Eq + Hash + Send + Sync> Hash for ArcIntern<T> {
 impl<T: ?Sized + Eq + Hash + Send + Sync> PartialEq for ArcIntern<T> {
     #[inline(always)]
     fn eq(&self, other: &Self) -> bool {
-        std::ptr::eq(self.get_pointer(), other.get_pointer())
+        core::ptr::eq(self.get_pointer(), other.get_pointer())
     }
 }
 impl<T: ?Sized + Eq + Hash + Send + Sync> Eq for ArcIntern<T> {}
 
 impl<T: ?Sized + Eq + Hash + Send + Sync + PartialOrd> PartialOrd for ArcIntern<T> {
     #[inline]
-    fn partial_cmp(&self, other: &Self) -> Option<std::cmp::Ordering> {
+    fn partial_cmp(&self, other: &Self) -> Option<core::cmp::Ordering> {
         self.as_ref().partial_cmp(other)
     }
     #[inline]
@@ -407,7 +419,7 @@ impl<T: ?Sized + Eq + Hash + Send + Sync + PartialOrd> PartialOrd for ArcIntern<
 }
 impl<T: ?Sized + Eq + Hash + Send + Sync + Ord> Ord for ArcIntern<T> {
     #[inline]
-    fn cmp(&self, other: &Self) -> std::cmp::Ordering {
+    fn cmp(&self, other: &Self) -> core::cmp::Ordering {
         self.as_ref().cmp(other)
     }
 }
@@ -450,7 +462,11 @@ where
 #[cfg(test)]
 mod arc_test {
     use super::ArcIntern;
-    use super::{Borrow, Deref};
+    use alloc::string::String;
+    use core::borrow::Borrow;
+    use core::ops::Deref;
+    use std::println;
+
     #[test]
     fn eq_string() {
         assert_eq!(ArcIntern::new("hello"), ArcIntern::new("hello"));
@@ -532,14 +548,14 @@ fn test_arcintern_nested_drop() {
 }
 
 impl<T: ?Sized + Eq + Hash + Send + Sync + Debug> Debug for ArcIntern<T> {
-    fn fmt(&self, f: &mut std::fmt::Formatter) -> Result<(), std::fmt::Error> {
+    fn fmt(&self, f: &mut core::fmt::Formatter) -> Result<(), core::fmt::Error> {
         self.deref().fmt(f)
     }
 }
 
 #[cfg(test)]
 #[derive(Eq, PartialEq, Hash)]
-pub struct TestStructCount(String, u64, std::sync::Arc<bool>);
+pub struct TestStructCount(String, u64, alloc::sync::Arc<bool>);
 
 #[cfg(test)]
 #[derive(Eq, PartialEq, Hash)]
@@ -549,7 +565,7 @@ pub struct TestStruct(String, u64);
 // multiple threads.
 #[test]
 fn multithreading1() {
-    use std::sync::Arc;
+    use alloc::sync::Arc;
     use std::thread;
     let mut thandles = vec![];
     let drop_check = Arc::new(true);
@@ -576,12 +592,12 @@ fn multithreading1() {
 #[test]
 fn arc_has_niche() {
     assert_eq!(
-        std::mem::size_of::<ArcIntern<String>>(),
-        std::mem::size_of::<usize>(),
+        core::mem::size_of::<ArcIntern<String>>(),
+        core::mem::size_of::<usize>(),
     );
     assert_eq!(
-        std::mem::size_of::<Option<ArcIntern<String>>>(),
-        std::mem::size_of::<usize>(),
+        core::mem::size_of::<Option<ArcIntern<String>>>(),
+        core::mem::size_of::<usize>(),
     );
 }
 
@@ -617,7 +633,7 @@ fn test_shrink_to_fit() {
     struct Value(usize);
     assert_eq!(0, ArcIntern::<Value>::get_container().capacity());
     {
-        let v = ArcIntern::new(Value(0));
+        let _v = ArcIntern::new(Value(0));
         assert!(ArcIntern::<Value>::get_container().capacity() >= 1);
         ArcIntern::<Value>::shrink_to_fit();
         assert!(ArcIntern::<Value>::get_container().capacity() >= 1);

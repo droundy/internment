@@ -1,33 +1,39 @@
 #![deny(missing_docs)]
 
-use std::{
-    borrow::{Borrow, Cow},
-    hash::Hash,
-    sync::{
-        atomic::{AtomicUsize, Ordering},
-        Arc,
-    },
+use super::arc::{ArcIntern, BoxRefCount, RefCount};
+use alloc::{
+    borrow::{Cow, ToOwned},
+    boxed::Box,
+    string::String,
+    sync::Arc,
+    vec::Vec,
 };
-
+use core::{
+    borrow::Borrow,
+    hash::Hash,
+    sync::atomic::{AtomicUsize, Ordering},
+};
 use dashmap::mapref::entry::Entry;
+
+#[cfg(test)]
+use alloc::{string::ToString, vec};
+
 #[cfg(feature = "serde")]
 use serde::{Deserialize, Deserializer};
 
-use super::arc::{ArcIntern, BoxRefCount, RefCount};
-
 impl<T: Copy> RefCount<[T]> {
     fn from_slice(slice: &[T]) -> Box<RefCount<[T]>> {
-        use std::alloc::Layout;
+        use core::alloc::Layout;
         let layout = Layout::new::<RefCount<()>>()
             .extend(Layout::array::<T>(slice.len()).unwrap())
             .unwrap()
             .0
             .pad_to_align();
         // SAFETY: the layout is not zero-sized, it at least has an `AtomicUsize`.
-        let ptr = unsafe { std::alloc::alloc(layout) };
+        let ptr = unsafe { alloc::alloc::alloc(layout) };
         // imitate the `std::Arc::new_zeroed_slice` and `std::Arc::try_allocate_for_layout`.
         let ptr =
-            std::ptr::slice_from_raw_parts_mut(ptr as *mut T, slice.len()) as *mut RefCount<[T]>;
+            core::ptr::slice_from_raw_parts_mut(ptr as *mut T, slice.len()) as *mut RefCount<[T]>;
 
         unsafe {
             // SAFETY: the ptr is allocated by the global allocator with proper layout, as per the
@@ -35,12 +41,12 @@ impl<T: Copy> RefCount<[T]> {
             // of [`std::boxed`].
             let mut this = Box::from_raw(ptr);
 
-            std::ptr::write(&mut this.count, AtomicUsize::new(1));
+            core::ptr::write(&mut this.count, AtomicUsize::new(1));
 
             // SAFETY: valid for reads, writes, aligned and not overlapped.
             // and T is Copy, so don't worry about drop.
             let dst = &mut this.data as *mut [T] as *mut T;
-            std::ptr::copy_nonoverlapping(slice.as_ptr(), dst, slice.len());
+            core::ptr::copy_nonoverlapping(slice.as_ptr(), dst, slice.len());
             this
         }
     }
@@ -61,7 +67,7 @@ impl<T: ?Sized + Eq + Hash + Send + Sync + 'static> ArcIntern<T> {
     /// make new [`ArcIntern`] with copyable initial value, like `&str` or `&[u8]`.
     fn new_with_copyable_init_val<I, NewFn>(val: &I, new_fn: NewFn) -> ArcIntern<T>
     where
-        I: ?Sized + Hash + std::cmp::Eq,
+        I: ?Sized + Hash + core::cmp::Eq,
         BoxRefCount<T>: Borrow<I>,
         NewFn: Fn(&I) -> Box<RefCount<T>>,
     {
@@ -78,7 +84,7 @@ impl<T: ?Sized + Eq + Hash + Send + Sync + 'static> ArcIntern<T> {
                 if oldval != 0 {
                     // we can only use this value if the value is not about to be freed
                     return ArcIntern {
-                        pointer: std::ptr::NonNull::from(b.0.borrow()),
+                        pointer: core::ptr::NonNull::from(b.0.borrow()),
                     };
                 } else {
                     // we have encountered a race condition here.
@@ -87,12 +93,12 @@ impl<T: ?Sized + Eq + Hash + Send + Sync + 'static> ArcIntern<T> {
                     b.0.count.fetch_sub(1, Ordering::SeqCst);
                 }
             } else {
-                let b = std::mem::take(&mut converted).unwrap_or_else(|| new_fn(val));
+                let b = core::mem::take(&mut converted).unwrap_or_else(|| new_fn(val));
                 match m.entry(BoxRefCount(b)) {
                     Entry::Vacant(e) => {
                         // We can insert, all is good
                         let p = ArcIntern {
-                            pointer: std::ptr::NonNull::from(e.key().0.borrow()),
+                            pointer: core::ptr::NonNull::from(e.key().0.borrow()),
                         };
                         e.insert(());
                         return p;
@@ -106,6 +112,7 @@ impl<T: ?Sized + Eq + Hash + Send + Sync + 'static> ArcIntern<T> {
             }
             // yield so that the object can finish being freed,
             // and then we will be able to intern a new copy.
+            #[cfg(feature = "std")]
             std::thread::yield_now();
         }
     }
@@ -130,7 +137,7 @@ macro_rules! impl_from {
 impl_from! { [] String, ArcIntern<str> }
 impl_from! { [] Box<str>, ArcIntern<str> }
 impl_from! { [] Arc<str>, ArcIntern<str> }
-impl_from! { [] std::rc::Rc<str>, ArcIntern<str> }
+impl_from! { [] alloc::rc::Rc<str>, ArcIntern<str> }
 impl<'a, B> From<Cow<'a, B>> for ArcIntern<B>
 where
     B: ToOwned + ?Sized + Send + Sync + Hash + Eq,
@@ -158,7 +165,7 @@ where
 impl_from! { [T: Copy + Send + Sync + Hash + Eq + 'static] Vec<T>, ArcIntern<[T]> }
 impl_from! { [T: Copy + Send + Sync + Hash + Eq + 'static] Box<[T]>, ArcIntern<[T]> }
 impl_from! { [T: Copy + Send + Sync + Hash + Eq + 'static] Arc<[T]>, ArcIntern<[T]> }
-impl_from! { [T: Copy + Send + Sync + Hash + Eq + 'static] std::rc::Rc<[T]>, ArcIntern<[T]> }
+impl_from! { [T: Copy + Send + Sync + Hash + Eq + 'static] alloc::rc::Rc<[T]>, ArcIntern<[T]> }
 
 impl Default for ArcIntern<str> {
     fn default() -> Self {
@@ -205,18 +212,18 @@ macro_rules! impl_eq {
 impl_eq! { [] ArcIntern<str>, str }
 impl_eq! { [] ArcIntern<str>, &'a str }
 impl_eq! { [] ArcIntern<str>, String }
-impl_eq! { [] ArcIntern<str>, std::borrow::Cow<'a, str> }
+impl_eq! { [] ArcIntern<str>, alloc::borrow::Cow<'a, str> }
 impl_eq! { [] ArcIntern<str>, Box<str> }
-impl_eq! { [] ArcIntern<str>, std::rc::Rc<str> }
-impl_eq! { [] ArcIntern<str>, std::sync::Arc<str> }
+impl_eq! { [] ArcIntern<str>, alloc::rc::Rc<str> }
+impl_eq! { [] ArcIntern<str>, alloc::sync::Arc<str> }
 impl_eq! { [T: Copy + Send + Sync + Hash + Eq + 'static] ArcIntern<[T]>, Vec<T> }
 impl_eq! { [T: Copy + Send + Sync + Hash + Eq + 'static] ArcIntern<[T]>, [T] }
 impl_eq! { [T: Copy + Send + Sync + Hash + Eq + 'static] ArcIntern<[T]>, &'a [T] }
 impl_eq! { [T: Copy + Send + Sync + Hash + Eq + 'static] ArcIntern<[T]>, &'a mut [T] }
-impl_eq! { [T: Copy + Send + Sync + Hash + Eq + 'static] ArcIntern<[T]>, std::borrow::Cow<'a, [T]> }
+impl_eq! { [T: Copy + Send + Sync + Hash + Eq + 'static] ArcIntern<[T]>, alloc::borrow::Cow<'a, [T]> }
 impl_eq! { [T: Copy + Send + Sync + Hash + Eq + 'static] ArcIntern<[T]>, Box<[T]> }
-impl_eq! { [T: Copy + Send + Sync + Hash + Eq + 'static] ArcIntern<[T]>, std::rc::Rc<[T]> }
-impl_eq! { [T: Copy + Send + Sync + Hash + Eq + 'static] ArcIntern<[T]>, std::sync::Arc<[T]> }
+impl_eq! { [T: Copy + Send + Sync + Hash + Eq + 'static] ArcIntern<[T]>, alloc::rc::Rc<[T]> }
+impl_eq! { [T: Copy + Send + Sync + Hash + Eq + 'static] ArcIntern<[T]>, alloc::sync::Arc<[T]> }
 impl_eq! { [T: Copy + Send + Sync + Hash + Eq + 'static, const N: usize] ArcIntern<[T]>, [T; N] }
 impl_eq! { [T: Copy + Send + Sync + Hash + Eq + 'static, const N: usize] ArcIntern<[T]>, &[T; N] }
 
@@ -226,10 +233,10 @@ impl_eq! { [T: Copy + Send + Sync + Hash + Eq + 'static, const N: usize] ArcInte
 #[cfg(feature = "serde")]
 struct StrVisitor;
 #[cfg(feature = "serde")]
-impl<'a> serde::de::Visitor<'a> for StrVisitor {
+impl serde::de::Visitor<'_> for StrVisitor {
     type Value = ArcIntern<str>;
 
-    fn expecting(&self, formatter: &mut std::fmt::Formatter) -> std::fmt::Result {
+    fn expecting(&self, formatter: &mut core::fmt::Formatter) -> core::fmt::Result {
         formatter.write_str("a borrowed or owned string")
     }
 
@@ -249,7 +256,7 @@ impl<'a> serde::de::Visitor<'a> for StrVisitor {
 }
 #[cfg_attr(docsrs, doc(cfg(feature = "serde")))]
 #[cfg(feature = "serde")]
-impl<'de: 'a, 'a> Deserialize<'de> for ArcIntern<str> {
+impl<'de> Deserialize<'de> for ArcIntern<str> {
     fn deserialize<D: Deserializer<'de>>(deserializer: D) -> Result<Self, D::Error> {
         deserializer.deserialize_str(StrVisitor)
     }
@@ -258,10 +265,10 @@ impl<'de: 'a, 'a> Deserialize<'de> for ArcIntern<str> {
 #[cfg(feature = "serde")]
 struct BytesVisitor;
 #[cfg(feature = "serde")]
-impl<'a> serde::de::Visitor<'a> for BytesVisitor {
+impl serde::de::Visitor<'_> for BytesVisitor {
     type Value = ArcIntern<[u8]>;
 
-    fn expecting(&self, formatter: &mut std::fmt::Formatter) -> std::fmt::Result {
+    fn expecting(&self, formatter: &mut core::fmt::Formatter) -> core::fmt::Result {
         formatter.write_str("a borrowed or owned byte array")
     }
 
@@ -272,6 +279,7 @@ impl<'a> serde::de::Visitor<'a> for BytesVisitor {
         Ok(ArcIntern::from(v))
     }
 
+    #[cfg(feature = "alloc")]
     fn visit_byte_buf<E>(self, v: Vec<u8>) -> Result<Self::Value, E>
     where
         E: serde::de::Error,
@@ -282,7 +290,7 @@ impl<'a> serde::de::Visitor<'a> for BytesVisitor {
 
 #[cfg_attr(docsrs, doc(cfg(feature = "serde")))]
 #[cfg(feature = "serde")]
-impl<'de: 'a, 'a> Deserialize<'de> for ArcIntern<[u8]> {
+impl<'de> Deserialize<'de> for ArcIntern<[u8]> {
     fn deserialize<D: Deserializer<'de>>(deserializer: D) -> Result<Self, D::Error> {
         deserializer.deserialize_bytes(BytesVisitor)
     }
@@ -324,10 +332,10 @@ fn common_equal_comparisons() {
     let s1: ArcIntern<str> = ArcIntern::from("common_equal_comparisons");
     let s2: &str = "common_equal_comparisons";
     let s3: String = "common_equal_comparisons".to_string();
-    let s4: std::borrow::Cow<'_, str> = "common_equal_comparisons".into();
+    let s4: alloc::borrow::Cow<'_, str> = "common_equal_comparisons".into();
     let s5: Box<str> = "common_equal_comparisons".into();
-    let s6: std::rc::Rc<str> = "common_equal_comparisons".into();
-    let s7: std::sync::Arc<str> = "common_equal_comparisons".into();
+    let s6: alloc::rc::Rc<str> = "common_equal_comparisons".into();
+    let s7: alloc::sync::Arc<str> = "common_equal_comparisons".into();
     assert_eq!(s1, s2);
     assert_eq!(s1, s3);
     assert_eq!(s1, s4);
@@ -341,10 +349,10 @@ fn common_from_conversions() {
     let s1: ArcIntern<str> = ArcIntern::from("common_from_conversions");
     let s2: &str = "common_from_conversions";
     let s3: String = "common_from_conversions".to_string();
-    let s4: std::borrow::Cow<'_, str> = "common_from_conversions".into();
+    let s4: alloc::borrow::Cow<'_, str> = "common_from_conversions".into();
     let s5: Box<str> = "common_from_conversions".into();
-    let s6: std::rc::Rc<str> = "common_from_conversions".into();
-    let s7: std::sync::Arc<str> = "common_from_conversions".into();
+    let s6: alloc::rc::Rc<str> = "common_from_conversions".into();
+    let s7: alloc::sync::Arc<str> = "common_from_conversions".into();
     assert_eq!(ArcIntern::from(s2), s1);
     assert_eq!(ArcIntern::from(s3), s1);
     assert_eq!(ArcIntern::from(s4), s1);
@@ -395,10 +403,10 @@ fn arc_intern_str() {
     assert_eq!(y.refcount(), 3);
     assert_eq!(z.refcount(), 3);
 
-    std::mem::drop(x);
+    core::mem::drop(x);
     assert_eq!(y.refcount(), 2);
     assert_eq!(z.refcount(), 2);
-    std::mem::drop(y);
+    core::mem::drop(y);
     assert_eq!(z.refcount(), 1);
 }
 
@@ -433,8 +441,8 @@ fn dst_memory_aligned() {
             struct Aligned(u8);
 
             // [The size of a value is always a multiple of its alignment](https://doc.rust-lang.org/reference/type-layout.html)
-            assert_eq!(std::mem::align_of::<Aligned>(), $align);
-            assert_eq!(std::mem::size_of::<Aligned>(), $align);
+            assert_eq!(core::mem::align_of::<Aligned>(), $align);
+            assert_eq!(core::mem::size_of::<Aligned>(), $align);
 
             let x: ArcIntern<[Aligned]> = ArcIntern::from(&[Aligned::default(); 10][..]);
             let ptr = unsafe { &*x.pointer.as_ptr() };
@@ -446,7 +454,7 @@ fn dst_memory_aligned() {
             { assert_eq!(addr0 % $align, 0) };
             for idx in 1..10 {
                 let addr_offset = &ptr.data[idx] as *const _ as usize;
-                assert_eq!(addr0 + idx * std::mem::size_of::<Aligned>(), addr_offset);
+                assert_eq!(addr0 + idx * core::mem::size_of::<Aligned>(), addr_offset);
             }
 
         }};

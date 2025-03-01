@@ -1,8 +1,18 @@
 #![deny(missing_docs)]
 use crate::boxedset::HashSet;
-use std::borrow::Borrow;
-use std::hash::{Hash, Hasher};
-use std::sync::Mutex;
+use alloc::{boxed::Box, string::String, vec::Vec};
+use core::{
+    borrow::Borrow,
+    hash::{Hash, Hasher},
+};
+
+#[cfg(not(any(feature = "std", feature = "spin")))]
+compile_error!(
+    "Require either the `std` or spin `features` to be enabled when using the `arena` feature"
+);
+
+#[cfg(test)]
+use std::println;
 
 /// A arena for storing interned data
 ///
@@ -39,13 +49,29 @@ use std::sync::Mutex;
 
 #[cfg_attr(docsrs, doc(cfg(feature = "arena")))]
 pub struct Arena<T: ?Sized> {
-    data: Mutex<HashSet<Box<T>>>,
+    #[cfg(feature = "std")]
+    data: std::sync::Mutex<HashSet<Box<T>>>,
+    #[cfg(all(feature = "spin", not(feature = "std")))]
+    data: spin::mutex::Mutex<HashSet<Box<T>>>,
+}
+
+impl<T: ?Sized> Arena<T> {
+    fn get_mut(&self) -> impl core::ops::DerefMut<Target = HashSet<Box<T>>> + '_ {
+        #[cfg(feature = "std")]
+        return self
+            .data
+            .lock()
+            .unwrap_or_else(std::sync::PoisonError::into_inner);
+
+        #[cfg(all(feature = "spin", not(feature = "std")))]
+        return self.data.lock();
+    }
 }
 
 #[cfg(feature = "deepsize")]
 impl<T: ?Sized + deepsize::DeepSizeOf> deepsize::DeepSizeOf for Arena<T> {
     fn deep_size_of_children(&self, context: &mut deepsize::Context) -> usize {
-        let hashset = self.data.lock().unwrap();
+        let hashset = self.get_mut();
         (*hashset).deep_size_of_children(context)
     }
 }
@@ -57,26 +83,29 @@ pub struct ArenaIntern<'a, T: ?Sized> {
 }
 
 #[cfg(feature = "deepsize")]
-impl<'a, T: ?Sized + deepsize::DeepSizeOf> deepsize::DeepSizeOf for ArenaIntern<'a, T> {
+impl<T: ?Sized + deepsize::DeepSizeOf> deepsize::DeepSizeOf for ArenaIntern<'_, T> {
     fn deep_size_of_children(&self, _context: &mut deepsize::Context) -> usize {
-        std::mem::size_of::<&T>()
+        core::mem::size_of::<&T>()
     }
 }
 
-impl<'a, T: ?Sized> Clone for ArenaIntern<'a, T> {
+impl<T: ?Sized> Clone for ArenaIntern<'_, T> {
     #[inline(always)]
     fn clone(&self) -> Self {
         *self
     }
 }
-impl<'a, T: ?Sized> Copy for ArenaIntern<'a, T> {}
+impl<T: ?Sized> Copy for ArenaIntern<'_, T> {}
 
 impl<T: ?Sized> Arena<T> {
     /// Allocate a new `Arena`
     #[inline]
     pub fn new() -> Self {
         Arena {
-            data: Mutex::new(HashSet::new()),
+            #[cfg(feature = "std")]
+            data: std::sync::Mutex::new(HashSet::new()),
+            #[cfg(all(feature = "spin", not(feature = "std")))]
+            data: spin::mutex::Mutex::new(HashSet::new()),
         }
     }
 }
@@ -87,7 +116,7 @@ impl<T: Eq + Hash> Arena<T> {
     /// allocate a spot for the value on the heap.  Otherwise, it will return a
     /// pointer to the object previously allocated.
     pub fn intern(&self, val: T) -> ArenaIntern<T> {
-        let mut m = self.data.lock().unwrap();
+        let mut m = self.get_mut();
         if let Some(b) = m.get(&val) {
             let p = b.as_ref() as *const T;
             return ArenaIntern {
@@ -108,9 +137,9 @@ impl<T: Eq + Hash + ?Sized> Arena<T> {
     where
         T: 'a + Borrow<I>,
         Box<T>: From<&'b I>,
-        I: Eq + std::hash::Hash + ?Sized,
+        I: Eq + core::hash::Hash + ?Sized,
     {
-        let mut m = self.data.lock().unwrap();
+        let mut m = self.get_mut();
         if let Some(b) = m.get(val) {
             let p = b.as_ref() as *const T;
             return ArenaIntern {
@@ -127,9 +156,9 @@ impl<T: Eq + Hash + ?Sized> Arena<T> {
     fn intern_from_owned<I>(&self, val: I) -> ArenaIntern<T>
     where
         Box<T>: From<I>,
-        I: Eq + std::hash::Hash + AsRef<T>,
+        I: Eq + core::hash::Hash + AsRef<T>,
     {
-        let mut m = self.data.lock().unwrap();
+        let mut m = self.get_mut();
         if let Some(b) = m.get(val.as_ref()) {
             let p = b.as_ref() as *const T;
             return ArenaIntern {
@@ -173,7 +202,7 @@ impl Arena<str> {
         self.intern_from_owned(val)
     }
 }
-impl Arena<std::ffi::CStr> {
+impl Arena<core::ffi::CStr> {
     /// Intern a `&CStr` as `ArenaIntern<CStr>`.
     ///
     /// If this value has not previously been interned, then `intern` will
@@ -189,7 +218,7 @@ impl Arena<std::ffi::CStr> {
     /// assert_eq!(x, y);
     /// ```
     #[inline]
-    pub fn intern<'a>(&'a self, val: &std::ffi::CStr) -> ArenaIntern<'a, std::ffi::CStr> {
+    pub fn intern<'a>(&'a self, val: &core::ffi::CStr) -> ArenaIntern<'a, core::ffi::CStr> {
         self.intern_ref(val)
     }
     /// Intern a `CString` as `ArenaIntern<CStr>`.
@@ -207,7 +236,7 @@ impl Arena<std::ffi::CStr> {
     /// assert_eq!(x, y);
     /// ```
     #[inline]
-    pub fn intern_cstring(&self, val: std::ffi::CString) -> ArenaIntern<std::ffi::CStr> {
+    pub fn intern_cstring(&self, val: alloc::ffi::CString) -> ArenaIntern<core::ffi::CStr> {
         self.intern_from_owned(val)
     }
     /// Intern a `Box<CStr>` as `ArenaIntern<CStr>`.
@@ -225,10 +254,11 @@ impl Arena<std::ffi::CStr> {
     /// assert_eq!(x, y);
     /// ```
     #[inline]
-    pub fn intern_box(&self, val: Box<std::ffi::CStr>) -> ArenaIntern<std::ffi::CStr> {
+    pub fn intern_box(&self, val: Box<core::ffi::CStr>) -> ArenaIntern<core::ffi::CStr> {
         self.intern_from_owned(val)
     }
 }
+#[cfg(feature = "std")]
 impl Arena<std::ffi::OsStr> {
     /// Intern a `&OsStr` as `ArenaIntern<OsStr>`.
     ///
@@ -285,6 +315,7 @@ impl Arena<std::ffi::OsStr> {
         self.intern_from_owned(val)
     }
 }
+#[cfg(feature = "std")]
 impl Arena<std::path::Path> {
     /// Intern a `&Path` as `ArenaIntern<Path>`.
     ///
@@ -375,9 +406,9 @@ impl<T: Eq + Hash + ?Sized> Arena<T> {
     pub fn intern_from<'a, 'b, I>(&'a self, val: &'b I) -> ArenaIntern<'a, T>
     where
         T: 'a + Borrow<I> + From<&'b I>,
-        I: Eq + std::hash::Hash + ?Sized,
+        I: Eq + core::hash::Hash + ?Sized,
     {
-        let mut m = self.data.lock().unwrap();
+        let mut m = self.get_mut();
         if let Some(b) = m.get(val) {
             let p = b.as_ref() as *const T;
             return ArenaIntern {
@@ -400,14 +431,14 @@ impl<T> Default for Arena<T> {
     }
 }
 
-impl<'a, T: ?Sized> AsRef<T> for ArenaIntern<'a, T> {
+impl<T: ?Sized> AsRef<T> for ArenaIntern<'_, T> {
     #[inline(always)]
     fn as_ref(&self) -> &T {
         self.pointer
     }
 }
 
-impl<'a, T: ?Sized> std::ops::Deref for ArenaIntern<'a, T> {
+impl<T: ?Sized> core::ops::Deref for ArenaIntern<'_, T> {
     type Target = T;
     #[inline(always)]
     fn deref(&self) -> &Self::Target {
@@ -486,34 +517,34 @@ impl<'a, T: ?Sized> ArenaIntern<'a, T> {
 /// be irrelevant, since there is a unique pointer for every
 /// value, but it *is* observable, since you could compare the
 /// hash of the pointer with hash of the data itself.
-impl<'a, T: ?Sized> Hash for ArenaIntern<'a, T> {
+impl<T: ?Sized> Hash for ArenaIntern<'_, T> {
     #[inline]
     fn hash<H: Hasher>(&self, state: &mut H) {
         self.get_pointer().hash(state);
     }
 }
 
-impl<'a, T: ?Sized> PartialEq for ArenaIntern<'a, T> {
+impl<T: ?Sized> PartialEq for ArenaIntern<'_, T> {
     #[inline]
     fn eq(&self, other: &Self) -> bool {
-        std::ptr::eq(self.get_pointer(), other.get_pointer())
+        core::ptr::eq(self.get_pointer(), other.get_pointer())
     }
 }
-impl<'a, T: ?Sized> Eq for ArenaIntern<'a, T> {}
+impl<T: ?Sized> Eq for ArenaIntern<'_, T> {}
 
 // #[cfg(feature = "arena")]
 // create_impls_no_new!(ArenaIntern, arenaintern_impl_tests, ['a], [Eq, Hash], [Eq, Hash]);
 
-impl<'a, T: std::fmt::Debug + ?Sized> std::fmt::Debug for ArenaIntern<'a, T> {
+impl<T: core::fmt::Debug + ?Sized> core::fmt::Debug for ArenaIntern<'_, T> {
     #[inline]
-    fn fmt(&self, f: &mut std::fmt::Formatter) -> Result<(), std::fmt::Error> {
+    fn fmt(&self, f: &mut core::fmt::Formatter) -> Result<(), core::fmt::Error> {
         self.as_ref().fmt(f)
     }
 }
 
-impl<'a, T: std::fmt::Display + ?Sized> std::fmt::Display for ArenaIntern<'a, T> {
+impl<T: core::fmt::Display + ?Sized> core::fmt::Display for ArenaIntern<'_, T> {
     #[inline]
-    fn fmt(&self, f: &mut std::fmt::Formatter) -> Result<(), std::fmt::Error> {
+    fn fmt(&self, f: &mut core::fmt::Formatter) -> Result<(), core::fmt::Error> {
         self.as_ref().fmt(f)
     }
 }
@@ -546,7 +577,7 @@ fn has_deref() {
     let arena = Arena::<Option<String>>::new();
     let x = arena.intern(None);
     let b: &Option<String> = x.as_ref();
-    use std::ops::Deref;
+    use core::ops::Deref;
     assert_eq!(b, arena.intern(None).deref());
 }
 

@@ -1,17 +1,24 @@
 #![deny(missing_docs)]
-use std::any::Any;
-use std::any::TypeId;
-use std::ffi::OsStr;
-use std::hash::{Hash, Hasher};
-use std::path::Path;
-
+use alloc::boxed::Box;
 use append_only_vec::AppendOnlyVec;
+use core::{
+    any::{Any, TypeId},
+    hash::{Hash, Hasher},
+};
+use std::{ffi::OsStr, path::Path, println};
+
+#[cfg(test)]
+use alloc::{
+    string::{String, ToString},
+    vec,
+};
 
 struct AnySend(Box<dyn Any + Send + Sync>);
 
 const CONTAINER_COUNT: usize = 32;
-const EMPTY: AppendOnlyVec<AnySend> = AppendOnlyVec::new();
-static CONTAINERS: [AppendOnlyVec<AnySend>; CONTAINER_COUNT] = [EMPTY; CONTAINER_COUNT];
+#[allow(clippy::declare_interior_mutable_const)]
+const CONTAINER: AppendOnlyVec<AnySend> = AppendOnlyVec::new();
+static CONTAINERS: [AppendOnlyVec<AnySend>; CONTAINER_COUNT] = [CONTAINER; CONTAINER_COUNT];
 
 pub fn with_mutex_hashset<F, T, R>(f: F) -> R
 where
@@ -78,10 +85,10 @@ where
 
 use super::boxedset;
 use boxedset::HashSet;
-use std::borrow::Borrow;
-use std::convert::AsRef;
-use std::fmt::{Debug, Display, Pointer};
-use std::ops::Deref;
+use core::borrow::Borrow;
+use core::convert::AsRef;
+use core::fmt::{Debug, Display, Pointer};
+use core::ops::Deref;
 use std::sync::Mutex;
 
 #[cfg(feature = "serde")]
@@ -141,12 +148,12 @@ pub struct Intern<T: 'static + ?Sized> {
 #[test]
 fn has_niche() {
     assert_eq!(
-        std::mem::size_of::<Intern<String>>(),
-        std::mem::size_of::<usize>(),
+        core::mem::size_of::<Intern<String>>(),
+        core::mem::size_of::<usize>(),
     );
     assert_eq!(
-        std::mem::size_of::<Option<Intern<String>>>(),
-        std::mem::size_of::<usize>(),
+        core::mem::size_of::<Option<Intern<String>>>(),
+        core::mem::size_of::<usize>(),
     );
 }
 
@@ -178,7 +185,7 @@ macro_rules! from_via_box {
         }
     };
 }
-from_via_box!(std::ffi::CStr);
+from_via_box!(core::ffi::CStr);
 from_via_box!(str);
 from_via_box!(std::path::Path);
 impl<T: Eq + Hash + Send + Sync + 'static + Copy> From<&[T]> for Intern<[T]> {
@@ -310,16 +317,16 @@ fn allocate_ptr() -> *mut usize {
 
 #[cfg(feature = "tinyset")]
 fn heap_location() -> u64 {
-    static HEAP_LOCATION: std::sync::atomic::AtomicPtr<usize> =
-        std::sync::atomic::AtomicPtr::new(0 as *mut usize);
-    let mut p = HEAP_LOCATION.load(std::sync::atomic::Ordering::Relaxed) as u64;
+    static HEAP_LOCATION: core::sync::atomic::AtomicPtr<usize> =
+        core::sync::atomic::AtomicPtr::new(0 as *mut usize);
+    let mut p = HEAP_LOCATION.load(core::sync::atomic::Ordering::Relaxed) as u64;
     if p == 0 {
         let ptr = allocate_ptr();
         p = match HEAP_LOCATION.compare_exchange(
-            std::ptr::null_mut(),
+            core::ptr::null_mut(),
             ptr,
-            std::sync::atomic::Ordering::Relaxed,
-            std::sync::atomic::Ordering::Relaxed,
+            core::sync::atomic::Ordering::Relaxed,
+            core::sync::atomic::Ordering::Relaxed,
         ) {
             Ok(_) => ptr as u64,
             Err(ptr) => {
@@ -332,7 +339,7 @@ fn heap_location() -> u64 {
 }
 #[cfg(feature = "tinyset")]
 const fn sz<T>() -> u64 {
-    std::mem::align_of::<T>() as u64
+    core::mem::align_of::<T>() as u64
 }
 /// The `Fits64` implementation for `Intern<T>` is designed to normally give
 /// (relatively) small numbers, by XORing with a fixed pointer that is also on
@@ -402,14 +409,14 @@ impl<T: Eq + Hash + Send + Sync + ?Sized> Deref for Intern<T> {
 
 impl<T: Eq + Hash + Send + Sync + Display + ?Sized> Display for Intern<T> {
     #[inline]
-    fn fmt(&self, f: &mut std::fmt::Formatter) -> Result<(), std::fmt::Error> {
+    fn fmt(&self, f: &mut core::fmt::Formatter) -> Result<(), core::fmt::Error> {
         self.deref().fmt(f)
     }
 }
 
 impl<T: Eq + Hash + Send + Sync + ?Sized> Pointer for Intern<T> {
     #[inline]
-    fn fmt(&self, f: &mut std::fmt::Formatter) -> Result<(), std::fmt::Error> {
+    fn fmt(&self, f: &mut core::fmt::Formatter) -> Result<(), core::fmt::Error> {
         Pointer::fmt(&self.get_pointer(), f)
     }
 }
@@ -429,14 +436,14 @@ impl<T: Eq + Hash + Send + Sync + ?Sized> Hash for Intern<T> {
 impl<T: Eq + Hash + Send + Sync + ?Sized> PartialEq for Intern<T> {
     #[inline(always)]
     fn eq(&self, other: &Self) -> bool {
-        std::ptr::eq(self.get_pointer(), other.get_pointer())
+        core::ptr::eq(self.get_pointer(), other.get_pointer())
     }
 }
 impl<T: Eq + Hash + Send + Sync + ?Sized> Eq for Intern<T> {}
 
 impl<T: Eq + Hash + Send + Sync + PartialOrd + ?Sized> PartialOrd for Intern<T> {
     #[inline]
-    fn partial_cmp(&self, other: &Self) -> Option<std::cmp::Ordering> {
+    fn partial_cmp(&self, other: &Self) -> Option<core::cmp::Ordering> {
         self.as_ref().partial_cmp(other)
     }
     #[inline]
@@ -458,7 +465,7 @@ impl<T: Eq + Hash + Send + Sync + PartialOrd + ?Sized> PartialOrd for Intern<T> 
 }
 impl<T: Eq + Hash + Send + Sync + Ord + ?Sized> Ord for Intern<T> {
     #[inline]
-    fn cmp(&self, other: &Self) -> std::cmp::Ordering {
+    fn cmp(&self, other: &Self) -> core::cmp::Ordering {
         self.as_ref().cmp(other)
     }
 }
@@ -497,7 +504,10 @@ impl<'de, T: Eq + Hash + Send + Sync + 'static + Deserialize<'de>> Deserialize<'
 #[cfg(test)]
 mod intern_tests {
     use super::Intern;
-    use super::{Borrow, Deref};
+    use alloc::string::String;
+    use core::{borrow::Borrow, ops::Deref};
+    use std::println;
+
     #[test]
     fn eq_string() {
         assert_eq!(Intern::new("hello"), Intern::new("hello"));
@@ -542,7 +552,7 @@ mod intern_tests {
 }
 
 impl<T: Debug + ?Sized> Debug for Intern<T> {
-    fn fmt(&self, f: &mut std::fmt::Formatter) -> Result<(), std::fmt::Error> {
+    fn fmt(&self, f: &mut core::fmt::Formatter) -> Result<(), core::fmt::Error> {
         self.as_ref().fmt(f)
     }
 }
@@ -568,7 +578,7 @@ fn test_intern_num_objects() {
 
 #[cfg(test)]
 #[derive(Eq, PartialEq, Hash)]
-pub struct TestStructCount(String, u64, std::sync::Arc<bool>);
+pub struct TestStructCount(String, u64, alloc::sync::Arc<bool>);
 
 #[cfg(test)]
 #[derive(Eq, PartialEq, Hash)]
