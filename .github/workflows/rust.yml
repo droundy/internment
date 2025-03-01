@@ -12,16 +12,14 @@ jobs:
           - stable
           - "1.70"
     steps:
-      - uses: actions/checkout@v2
-      - uses: actions-rs/toolchain@v1
+      - uses: actions/checkout@v4
+      - uses: dtolnay/rust-toolchain@stable
         with:
-          profile: minimal
           toolchain: ${{ matrix.rust }}
-          override: true
-      - uses: actions-rs/cargo@v1
-        with:
-          command: check
-          args: --features "arc,tinyset"
+          targets: x86_64-unknown-none,thumbv6m-none-eabi
+      - run: cargo check --features "arc,tinyset"
+      - run: cargo check --no-default-features --target x86_64-unknown-none --features serde,arena,spin,intern,alloc,deepsize
+      - run: cargo check --no-default-features --target thumbv6m-none-eabi --features serde,arena,spin,intern,portable-atomic,critical-section
 
   test:
     name: Test Suite
@@ -31,7 +29,7 @@ jobs:
         rust:
           - stable
     steps:
-      - uses: actions/checkout@v2
+      - uses: actions/checkout@v4
       - uses: actions-rs/toolchain@v1
         with:
           profile: minimal
@@ -49,7 +47,7 @@ jobs:
         rust:
           - nightly
     steps:
-      - uses: actions/checkout@v2
+      - uses: actions/checkout@v4
       - uses: actions-rs/toolchain@v1
         with:
           profile: minimal
@@ -70,7 +68,7 @@ jobs:
         rust:
           - "1.70"
     steps:
-      - uses: actions/checkout@v2
+      - uses: actions/checkout@v4
       - uses: actions-rs/toolchain@v1
         with:
           profile: minimal
@@ -86,7 +84,7 @@ jobs:
           rust:
             - nightly
       steps:
-        - uses: actions/checkout@v2
+        - uses: actions/checkout@v4
         - uses: actions-rs/toolchain@v1
           with:
             profile: minimal
