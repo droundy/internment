@@ -12,16 +12,11 @@ jobs:
           - stable
           - "1.70"
     steps:
-      - uses: actions/checkout@v2
-      - uses: actions-rs/toolchain@v1
+      - uses: actions/checkout@v4
+      - uses: dtolnay/rust-toolchain@stable
         with:
-          profile: minimal
           toolchain: ${{ matrix.rust }}
-          override: true
-      - uses: actions-rs/cargo@v1
-        with:
-          command: check
-          args: --features "arc,tinyset"
+      - run: cargo check --features "arc,tinyset"
 
   test:
     name: Test Suite
@@ -31,16 +26,11 @@ jobs:
         rust:
           - stable
     steps:
-      - uses: actions/checkout@v2
-      - uses: actions-rs/toolchain@v1
+      - uses: actions/checkout@v4
+      - uses: dtolnay/rust-toolchain@stable
         with:
-          profile: minimal
           toolchain: ${{ matrix.rust }}
-          override: true
-      - uses: actions-rs/cargo@v1
-        with:
-          command: test
-          args: --all-features
+      - run: cargo test --all-features
   docsrs:
     name: Generate docs.rs
     runs-on: ubuntu-latest
@@ -49,16 +39,11 @@ jobs:
         rust:
           - nightly
     steps:
-      - uses: actions/checkout@v2
-      - uses: actions-rs/toolchain@v1
+      - uses: actions/checkout@v4
+      - uses: dtolnay/rust-toolchain@stable
         with:
-          profile: minimal
           toolchain: ${{ matrix.rust }}
-          override: true
-      - uses: actions-rs/cargo@v1
-        with:
-          command: doc
-          args: --all-features
+      - run: cargo doc --all-features
         env:
           RUSTFLAGS: --cfg docsrs
           RUSTDOCFLAGS: --cfg docsrs -Dwarnings
@@ -70,28 +55,18 @@ jobs:
         rust:
           - "1.70"
     steps:
-      - uses: actions/checkout@v2
-      - uses: actions-rs/toolchain@v1
+      - uses: actions/checkout@v4
+      - uses: dtolnay/rust-toolchain@stable
         with:
-          profile: minimal
           toolchain: ${{ matrix.rust }}
-          override: true
-      - uses: actions-rs/cargo@v1
-        with:
-          command: test
+      - run: cargo test
   miri-test:
       runs-on: ubuntu-latest
-      strategy:
-        matrix:
-          rust:
-            - nightly
       steps:
-        - uses: actions/checkout@v2
-        - uses: actions-rs/toolchain@v1
+        - uses: actions/checkout@v4
+        - uses: dtolnay/rust-toolchain@stable
           with:
-            profile: minimal
-            toolchain: ${{ matrix.rust }}
-            override: true
+            toolchain: nightly
             components: miri
         - name: miri test normal_intern
           run: cargo miri test normal_intern
@@ -102,15 +77,12 @@ jobs:
   coverage:
     runs-on: ubuntu-latest
     steps:
-      - uses: actions/checkout@v1
-      - uses: actions-rs/toolchain@v1
+      - uses: actions/checkout@v4
+      - uses: dtolnay/rust-toolchain@stable
         with:
           toolchain: nightly
           override: true
-      - uses: actions-rs/cargo@v1
-        with:
-          command: test
-          args: --features arc,arena,tinyset --no-fail-fast
+      - run: cargo test --features arc,arena,tinyset --no-fail-fast
         env:
           CARGO_INCREMENTAL: '0'
           RUSTFLAGS: '-Zprofile -Ccodegen-units=1 -Cinline-threshold=0 -Clink-dead-code -Coverflow-checks=off -Cpanic=abort -Zpanic_abort_tests'
