@@ -85,8 +85,8 @@ jobs:
       - run: cargo test --features arc,arena,tinyset --no-fail-fast
         env:
           CARGO_INCREMENTAL: '0'
-          RUSTFLAGS: '-C instrument-coverage -Ccodegen-units=1 -Cinline-threshold=0 -Clink-dead-code -Coverflow-checks=off -Cpanic=abort -Zpanic_abort_tests'
-          RUSTDOCFLAGS: '--C instrument-coverage -Ccodegen-units=1 -Cinline-threshold=0 -Clink-dead-code -Coverflow-checks=off -Cpanic=abort -Zpanic_abort_tests'
+          RUSTFLAGS: '-C instrument-coverage -Ccodegen-units=1 -Cinline-threshold=0 -Clink-dead-code -Coverflow-checks=off -Cpanic=abort'
+          RUSTDOCFLAGS: '--C instrument-coverage -Ccodegen-units=1 -Cinline-threshold=0 -Clink-dead-code -Coverflow-checks=off -Cpanic=abort'
       - name: Gather coverage data
         id: coverage
         uses: droundy/grcov@master
