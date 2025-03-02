@@ -16,7 +16,10 @@ jobs:
       - uses: dtolnay/rust-toolchain@stable
         with:
           toolchain: ${{ matrix.rust }}
+          targets: "x86_64-unknown-none, thumbv6m-none-eabi"
       - run: cargo check --features "arc,tinyset"
+      - run: cargo check --no-default-features --target x86_64-unknown-none --features serde,arena,spin,intern,alloc,deepsize
+      - run: cargo check --no-default-features --target thumbv6m-none-eabi --features serde,arena,spin,intern,portable-atomic,critical-section
 
   test:
     name: Test Suite

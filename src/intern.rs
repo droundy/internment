@@ -1,18 +1,24 @@
 #![deny(missing_docs)]
-use super::boxedset;
+use super::{boxedset, container};
+use alloc::boxed::Box;
 use boxedset::HashSet;
-use std::borrow::Borrow;
-use std::convert::AsRef;
-use std::ffi::OsStr;
-use std::fmt::{Debug, Display, Pointer};
-use std::hash::{Hash, Hasher};
-use std::ops::Deref;
-use std::path::Path;
+use core::{
+    borrow::Borrow,
+    convert::AsRef,
+    fmt::{Debug, Display, Pointer},
+    hash::{Hash, Hasher},
+    ops::Deref,
+};
 
-use super::container;
+#[cfg(feature = "std")]
+use std::{ffi::OsStr, path::Path};
+
+#[cfg(test)]
+use alloc::string::{String, ToString};
 
 #[cfg(feature = "serde")]
 use serde::{Deserialize, Deserializer, Serialize, Serializer};
+
 #[cfg(feature = "tinyset")]
 use tinyset::Fits64;
 
@@ -82,12 +88,12 @@ pub fn deep_size_of_interned<T: Eq + Hash + Send + Sync + 'static + deepsize::De
 #[test]
 fn has_niche() {
     assert_eq!(
-        std::mem::size_of::<Intern<String>>(),
-        std::mem::size_of::<usize>(),
+        core::mem::size_of::<Intern<String>>(),
+        core::mem::size_of::<usize>(),
     );
     assert_eq!(
-        std::mem::size_of::<Option<Intern<String>>>(),
-        std::mem::size_of::<usize>(),
+        core::mem::size_of::<Option<Intern<String>>>(),
+        core::mem::size_of::<usize>(),
     );
 }
 
@@ -98,7 +104,7 @@ impl<T: ?Sized> Clone for Intern<T> {
     }
 }
 
-/// An `Intern` is `Copy`, which is unusal for a pointer.  This is safe
+/// An `Intern` is `Copy`, which is unusual for a pointer.  This is safe
 /// because we never free the data pointed to by an `Intern`.
 impl<T: ?Sized> Copy for Intern<T> {}
 
@@ -121,8 +127,9 @@ macro_rules! from_via_box {
         }
     };
 }
-from_via_box!(std::ffi::CStr);
+from_via_box!(core::ffi::CStr);
 from_via_box!(str);
+#[cfg(feature = "std")]
 from_via_box!(std::path::Path);
 impl<T: Eq + Hash + Send + Sync + 'static + Copy> From<&[T]> for Intern<[T]> {
     #[inline]
@@ -288,16 +295,16 @@ fn allocate_ptr() -> *mut usize {
 
 #[cfg(feature = "tinyset")]
 fn heap_location() -> u64 {
-    static HEAP_LOCATION: std::sync::atomic::AtomicPtr<usize> =
-        std::sync::atomic::AtomicPtr::new(0 as *mut usize);
-    let mut p = HEAP_LOCATION.load(std::sync::atomic::Ordering::Relaxed) as u64;
+    static HEAP_LOCATION: core::sync::atomic::AtomicPtr<usize> =
+        core::sync::atomic::AtomicPtr::new(0 as *mut usize);
+    let mut p = HEAP_LOCATION.load(core::sync::atomic::Ordering::Relaxed) as u64;
     if p == 0 {
         let ptr = allocate_ptr();
         p = match HEAP_LOCATION.compare_exchange(
-            std::ptr::null_mut(),
+            core::ptr::null_mut(),
             ptr,
-            std::sync::atomic::Ordering::Relaxed,
-            std::sync::atomic::Ordering::Relaxed,
+            core::sync::atomic::Ordering::Relaxed,
+            core::sync::atomic::Ordering::Relaxed,
         ) {
             Ok(_) => ptr as u64,
             Err(ptr) => ptr as u64, // this means another thread allocated this.
@@ -307,7 +314,7 @@ fn heap_location() -> u64 {
 }
 #[cfg(feature = "tinyset")]
 const fn sz<T>() -> u64 {
-    std::mem::align_of::<T>() as u64
+    core::mem::align_of::<T>() as u64
 }
 /// The `Fits64` implementation for `Intern<T>` is designed to normally give
 /// (relatively) small numbers, by XORing with a fixed pointer that is also on
@@ -356,6 +363,7 @@ impl<T: ?Sized> AsRef<T> for Intern<T> {
     }
 }
 
+#[cfg_attr(not(feature = "std"), allow(unused_macros))]
 macro_rules! impl_as_ref {
     ($from:ty => $to:ty) => {
         impl AsRef<$to> for Intern<$from> {
@@ -367,9 +375,13 @@ macro_rules! impl_as_ref {
     };
 }
 
+#[cfg(feature = "std")]
 impl_as_ref!(str => OsStr);
+#[cfg(feature = "std")]
 impl_as_ref!(str => Path);
+#[cfg(feature = "std")]
 impl_as_ref!(OsStr => Path);
+#[cfg(feature = "std")]
 impl_as_ref!(Path => OsStr);
 
 impl<T: Eq + Hash + Send + Sync + ?Sized> Deref for Intern<T> {
@@ -382,14 +394,14 @@ impl<T: Eq + Hash + Send + Sync + ?Sized> Deref for Intern<T> {
 
 impl<T: Eq + Hash + Send + Sync + Display + ?Sized> Display for Intern<T> {
     #[inline]
-    fn fmt(&self, f: &mut std::fmt::Formatter) -> Result<(), std::fmt::Error> {
+    fn fmt(&self, f: &mut core::fmt::Formatter) -> Result<(), core::fmt::Error> {
         self.deref().fmt(f)
     }
 }
 
 impl<T: Eq + Hash + Send + Sync + ?Sized> Pointer for Intern<T> {
     #[inline]
-    fn fmt(&self, f: &mut std::fmt::Formatter) -> Result<(), std::fmt::Error> {
+    fn fmt(&self, f: &mut core::fmt::Formatter) -> Result<(), core::fmt::Error> {
         Pointer::fmt(&self.get_pointer(), f)
     }
 }
@@ -409,14 +421,14 @@ impl<T: Eq + Hash + Send + Sync + ?Sized> Hash for Intern<T> {
 impl<T: Eq + Hash + Send + Sync + ?Sized> PartialEq for Intern<T> {
     #[inline]
     fn eq(&self, other: &Self) -> bool {
-        std::ptr::eq(self.get_pointer(), other.get_pointer())
+        core::ptr::eq(self.get_pointer(), other.get_pointer())
     }
 }
 impl<T: Eq + Hash + Send + Sync + ?Sized> Eq for Intern<T> {}
 
 impl<T: Eq + Hash + Send + Sync + PartialOrd + ?Sized> PartialOrd for Intern<T> {
     #[inline]
-    fn partial_cmp(&self, other: &Self) -> Option<std::cmp::Ordering> {
+    fn partial_cmp(&self, other: &Self) -> Option<core::cmp::Ordering> {
         self.as_ref().partial_cmp(other)
     }
     #[inline]
@@ -438,7 +450,7 @@ impl<T: Eq + Hash + Send + Sync + PartialOrd + ?Sized> PartialOrd for Intern<T> 
 }
 impl<T: Eq + Hash + Send + Sync + Ord + ?Sized> Ord for Intern<T> {
     #[inline]
-    fn cmp(&self, other: &Self) -> std::cmp::Ordering {
+    fn cmp(&self, other: &Self) -> core::cmp::Ordering {
         self.as_ref().cmp(other)
     }
 }
@@ -467,9 +479,7 @@ impl<T: Eq + Hash + Send + Sync + Default + 'static> Default for Intern<T> {
 
 #[cfg_attr(docsrs, doc(cfg(feature = "serde")))]
 #[cfg(feature = "serde")]
-impl<'de, T: Eq + Hash + Send + Sync + ?Sized + 'static + Deserialize<'de>> Deserialize<'de>
-    for Intern<T>
-{
+impl<'de, T: Eq + Hash + Send + Sync + 'static + Deserialize<'de>> Deserialize<'de> for Intern<T> {
     fn deserialize<D: Deserializer<'de>>(deserializer: D) -> Result<Self, D::Error> {
         T::deserialize(deserializer).map(|x: T| Self::new(x))
     }
@@ -478,17 +488,20 @@ impl<'de, T: Eq + Hash + Send + Sync + ?Sized + 'static + Deserialize<'de>> Dese
 #[cfg(test)]
 mod intern_tests {
     use super::Intern;
-    use super::{Borrow, Deref};
-    use std::hash::Hash;
+    use alloc::{
+        string::{String, ToString},
+        vec,
+    };
+    use core::{borrow::Borrow, hash::Hash, ops::Deref};
+    use std::println;
 
     #[cfg(feature = "deepsize")]
-    use super::INTERN_CONTAINERS;
-    #[cfg(feature = "deepsize")]
-    use crate::{boxedset::HashSet, deep_size_of_interned};
-    #[cfg(feature = "deepsize")]
-    use deepsize::{Context, DeepSizeOf};
-    #[cfg(feature = "deepsize")]
-    use std::sync::Arc;
+    use {
+        super::INTERN_CONTAINERS,
+        crate::{boxedset::HashSet, deep_size_of_interned},
+        alloc::sync::Arc,
+        deepsize::{Context, DeepSizeOf},
+    };
 
     #[test]
     fn eq_string() {
@@ -592,10 +605,10 @@ mod intern_tests {
         let _ = Intern::new(string3);
         // size of set
         let set_size =
-            INTERN_CONTAINERS.with(|m: &mut HashSet<&'static String>| std::mem::size_of_val(m));
+            INTERN_CONTAINERS.with(|m: &mut HashSet<&'static String>| core::mem::size_of_val(m));
         // size of pointers in the set
         let pointers_in_set_size = INTERN_CONTAINERS.with(|m: &mut HashSet<&'static String>| {
-            std::mem::size_of::<&'static String>() * m.capacity()
+            core::mem::size_of::<&'static String>() * m.capacity()
         });
 
         let interned_size = deep_size_of_interned::<String>();
@@ -613,7 +626,7 @@ mod intern_tests {
     impl Hash for ArcInside {
         /// For testing purposes, we only hash the hash field.
         /// In order to make [`ArcInside`] instances containing the same string have different hash values.
-        fn hash<H: std::hash::Hasher>(&self, state: &mut H) {
+        fn hash<H: core::hash::Hasher>(&self, state: &mut H) {
             self.hash.hash(state);
         }
     }
@@ -657,7 +670,7 @@ mod intern_tests {
             pointer: a1.pointer.clone(),
         };
         // size of ArcInside, 16 bytes each
-        let object_size = std::mem::size_of::<ArcInside>() * 3;
+        let object_size = core::mem::size_of::<ArcInside>() * 3;
 
         let _ = Intern::new(a1);
         let _ = Intern::new(a2);
@@ -665,10 +678,10 @@ mod intern_tests {
 
         // size of set
         let set_size =
-            INTERN_CONTAINERS.with(|m: &mut HashSet<&'static ArcInside>| std::mem::size_of_val(m));
+            INTERN_CONTAINERS.with(|m: &mut HashSet<&'static ArcInside>| core::mem::size_of_val(m));
         // size of pointers in the set
         let pointers_in_set_size = INTERN_CONTAINERS.with(|m: &mut HashSet<&'static ArcInside>| {
-            std::mem::size_of::<&'static ArcInside>() * m.capacity()
+            core::mem::size_of::<&'static ArcInside>() * m.capacity()
         });
 
         let interned_size = deep_size_of_interned::<ArcInside>();
@@ -691,7 +704,7 @@ mod intern_tests {
 
 impl<T: Debug + ?Sized> Debug for Intern<T> {
     #[inline]
-    fn fmt(&self, f: &mut std::fmt::Formatter) -> Result<(), std::fmt::Error> {
+    fn fmt(&self, f: &mut core::fmt::Formatter) -> Result<(), core::fmt::Error> {
         self.as_ref().fmt(f)
     }
 }
