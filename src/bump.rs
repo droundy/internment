@@ -47,11 +47,23 @@ impl<T: Eq + Hash, S: Default + BuildHasher> Bump<T, S> {
     /// allocate a spot for the value on the heap.  Otherwise, it will return a
     /// pointer to the object previously allocated.
     pub fn intern(&self, val: T) -> &T {
+        self.intern_inner(val)
+    }
+
+    /// Same as [`intern`](Self::intern), but does not clone if the value is already interned.
+    pub fn intern_ref(&self, val: &T) -> &T
+    where
+        T: Clone,
+    {
+        self.intern_inner(val)
+    }
+
+    fn intern_inner<Q: Internable<T>>(&self, val: Q) -> &T {
         let mut interner = self.interner.take();
-        let entry = interner.raw_entry_mut().from_key(&val);
+        let entry = interner.raw_entry_mut().from_key(val.borrow());
         let r = match entry {
             RawEntryMut::Vacant(v) => {
-                let r = &*self.arena.alloc(val);
+                let r = &*self.arena.alloc(val.to_owned());
                 v.insert(Interned(NonNull::from(r)), ());
                 r
             }
@@ -71,6 +83,24 @@ impl<T, S: Default> Default for Bump<T, S> {
     #[inline]
     fn default() -> Self {
         Self::new()
+    }
+}
+
+/// Private trait to allow for generic interning implementation which works with
+/// both `&T` and `T`.
+trait Internable<T>: Borrow<T> {
+    fn to_owned(self) -> T;
+}
+
+impl<T> Internable<T> for T {
+    fn to_owned(self) -> T {
+        self
+    }
+}
+
+impl<T: Clone> Internable<T> for &T {
+    fn to_owned(self) -> T {
+        self.clone()
     }
 }
 
