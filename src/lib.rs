@@ -79,6 +79,12 @@ pub use arena::Arena;
 #[cfg(feature = "arena")]
 pub use arena::ArenaIntern;
 
+#[cfg(feature = "bump")]
+mod bump;
+
+#[cfg(feature = "bump")]
+pub use bump::Bump;
+
 #[cfg(feature = "arc")]
 mod arc;
 #[cfg(feature = "arc")]
