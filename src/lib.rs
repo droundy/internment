@@ -70,6 +70,15 @@ mod intern;
 #[cfg(feature = "intern")]
 pub use intern::Intern;
 
+#[cfg(feature = "intern32")]
+mod intern32;
+#[cfg(feature = "intern32")]
+pub use intern32::Intern32;
+#[cfg(feature = "intern32")]
+pub(crate) mod append_container;
+#[cfg(feature = "intern32")]
+pub(crate) mod boxedmap;
+
 #[cfg(feature = "arena")]
 mod arena;
 
