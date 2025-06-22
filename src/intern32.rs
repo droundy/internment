@@ -1,9 +1,8 @@
 #![deny(missing_docs)]
-use super::{append_container, boxedset, container};
+use super::{append_container, container};
 use crate::boxedmap::HashMap;
 use alloc::boxed::Box;
 use append_only_vec::AppendOnlyVec;
-use boxedset::HashSet;
 use core::{
     borrow::Borrow,
     convert::AsRef,
@@ -82,27 +81,28 @@ impl<T: 'static + ?Sized> deepsize::DeepSizeOf for Intern32<T> {
     }
 }
 
-#[cfg_attr(docsrs, doc(cfg(all(feature = "deepsize", feature = "intern32"))))]
-/// Return the memory used by all interned objects of the given type.
-#[cfg(feature = "deepsize")]
-pub fn deep_size_of_interned<T: Eq + Hash + Send + Sync + 'static + deepsize::DeepSizeOf>() -> usize
-{
-    use deepsize::DeepSizeOf;
-    let set_size = INTERN_CONTAINERS
-        .with(|m: &mut HashMap<&'static T, NonZeroU32>| -> usize { (*m).deep_size_of() });
-    let data = INTERN_DATA.get::<AppendOnlyVec<Box<T>>>();
-    struct Dummy<T: 'static>(&'static AppendOnlyVec<Box<T>>);
-    impl<T: DeepSizeOf> deepsize::DeepSizeOf for Dummy<T> {
-        fn deep_size_of_children(&self, context: &mut deepsize::Context) -> usize {
-            self.0
-                .iter()
-                .map(|v| std::mem::size_of_val(v) + v.deep_size_of_children(context))
-                .sum::<usize>()
+impl<T: Eq + Hash + Send + Sync + 'static + deepsize::DeepSizeOf> Intern32<T> {
+    #[cfg_attr(docsrs, doc(cfg(all(feature = "deepsize", feature = "intern32"))))]
+    /// Return the memory used by all interned objects of the given type.
+    #[cfg(feature = "deepsize")]
+    pub fn deep_size_of_interned() -> usize {
+        use deepsize::DeepSizeOf;
+        let set_size = INTERN_CONTAINERS
+            .with(|m: &mut HashMap<&'static T, NonZeroU32>| -> usize { (*m).deep_size_of() });
+        let data = INTERN_DATA.get::<AppendOnlyVec<Box<T>>>();
+        struct Dummy<T: 'static>(&'static AppendOnlyVec<Box<T>>);
+        impl<T: DeepSizeOf> deepsize::DeepSizeOf for Dummy<T> {
+            fn deep_size_of_children(&self, context: &mut deepsize::Context) -> usize {
+                self.0
+                    .iter()
+                    .map(|v| std::mem::size_of_val(v) + v.deep_size_of_children(context))
+                    .sum::<usize>()
+            }
         }
+        let data_size = Dummy(data).deep_size_of();
+        std::println!("XXXXXXXXXXXXXXXXX set {set_size} data {data_size}");
+        set_size + data_size
     }
-    let data_size = Dummy(data).deep_size_of();
-    std::println!("XXXXXXXXXXXXXXXXX set {set_size} data {data_size}");
-    set_size + data_size
 }
 
 #[test]
@@ -231,7 +231,8 @@ impl<T: Eq + Hash + Send + Sync + 'static> Intern32<T> {
     /// to the object previously allocated.
     ///
     /// Note that `Intern32::new` is a bit slow, since it needs to check a
-    /// `HashSet` protected by a `Mutex`.
+    /// `HashMap` protected by a `Mutex`.
+    #[inline]
     pub fn new(val: T) -> Intern32<T> {
         create_intern!(T, &val, Box::new(val))
     }
@@ -245,6 +246,17 @@ impl<T: Eq + Hash + Send + Sync + 'static> Intern32<T> {
         T: Borrow<Q> + From<&'a Q>,
     {
         create_intern!(T, val, Box::from(T::from(val)))
+    }
+}
+impl<'a, Q, T> From<&'a Q> for Intern32<T>
+where
+    Q: Eq + Hash,
+    T: Eq + Hash + Send + Sync + 'static + Borrow<Q>,
+    Box<T>: From<&'a Q>,
+{
+    #[inline]
+    fn from(value: &'a Q) -> Self {
+        create_intern!(T, value, Box::from(value))
     }
 }
 impl<T: Eq + Hash + Send + Sync + 'static + ?Sized> Intern32<T> {
@@ -300,33 +312,7 @@ fn test_benchmarking_only_clear_interns() {
     assert_eq!(0, Intern32::<str>::num_objects_interned());
 }
 
-#[cfg(feature = "tinyset")]
-#[cold]
-fn allocate_ptr() -> *mut usize {
-    let aref: &usize = Box::leak(Box::new(0));
-    aref as *const usize as *mut usize
-}
-
-#[cfg(feature = "tinyset")]
-fn heap_location() -> u64 {
-    static HEAP_LOCATION: core::sync::atomic::AtomicPtr<usize> =
-        core::sync::atomic::AtomicPtr::new(0 as *mut usize);
-    let mut p = HEAP_LOCATION.load(core::sync::atomic::Ordering::Relaxed) as u64;
-    if p == 0 {
-        let ptr = allocate_ptr();
-        p = match HEAP_LOCATION.compare_exchange(
-            core::ptr::null_mut(),
-            ptr,
-            core::sync::atomic::Ordering::Relaxed,
-            core::sync::atomic::Ordering::Relaxed,
-        ) {
-            Ok(_) => ptr as u64,
-            Err(ptr) => ptr as u64, // this means another thread allocated this.
-        };
-    }
-    p
-}
-#[cfg(feature = "tinyset")]
+#[cfg(all(test, feature = "tinyset"))]
 const fn sz<T>() -> u64 {
     core::mem::align_of::<T>() as u64
 }
@@ -485,12 +471,6 @@ impl<T: Eq + Hash + Send + Sync + Serialize + ?Sized> Serialize for Intern32<T> 
     }
 }
 
-impl<T: Eq + Hash + Send + Sync + 'static> From<T> for Intern32<T> {
-    #[inline]
-    fn from(t: T) -> Self {
-        Intern32::new(t)
-    }
-}
 impl<T: Eq + Hash + Send + Sync + Default + 'static> Default for Intern32<T> {
     #[inline]
     fn default() -> Self {
@@ -520,11 +500,7 @@ mod intern_tests {
 
     #[cfg(feature = "deepsize")]
     use {
-        super::{
-            deep_size_of_interned, AppendOnlyVec, Box, HashMap, NonZeroU32, INTERN_CONTAINERS,
-            INTERN_DATA,
-        },
-        crate::boxedset::HashSet,
+        super::{Box, HashMap, NonZeroU32, INTERN_CONTAINERS},
         alloc::sync::Arc,
         deepsize::{Context, DeepSizeOf},
     };
@@ -635,9 +611,9 @@ mod intern_tests {
             set.deep_size_of()
         };
         // size of the data
-        let data_size = 8 + Box::new(string1).deep_size_of();
+        let data_size = 16 + (&string1).deep_size_of();
 
-        let interned_size = deep_size_of_interned::<String>();
+        let interned_size = Intern32::<String>::deep_size_of_interned();
         println!("data_size: {data_size}, set_size: {set_size}");
         assert_eq!(interned_size, set_size + data_size);
     }
@@ -715,7 +691,7 @@ mod intern_tests {
             map.deep_size_of()
         };
 
-        let interned_size = deep_size_of_interned::<ArcInside>();
+        let interned_size = Intern32::<ArcInside>::deep_size_of_interned();
 
         println!("string_size: {}", string_size);
         println!("object_size: {}", object_size);

@@ -1,4 +1,4 @@
-#[cfg(feature = "bench")]
+#![cfg(feature = "bench")]
 use scaling::{bench, bench_gen_env};
 #[cfg(feature = "bench")]
 use std::collections::HashSet;

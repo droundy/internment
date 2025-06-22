@@ -31,7 +31,7 @@ impl<P: deepsize::DeepSizeOf, V: deepsize::DeepSizeOf> deepsize::DeepSizeOf
         let heap_memory = self
             .0
             .iter()
-            .map(|(n, v)| {
+            .map(|(_, v)| {
                 core::mem::size_of::<P>()
                     + v.deep_size_of_children(context)
                     + core::mem::size_of_val(v)
