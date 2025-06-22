@@ -32,9 +32,9 @@ impl<P: deepsize::DeepSizeOf, V: deepsize::DeepSizeOf> deepsize::DeepSizeOf
             .0
             .iter()
             .map(|(n, v)| {
-                (**n).deep_size_of_children(context)
-                    + core::mem::size_of::<P>()
+                core::mem::size_of::<P>()
                     + v.deep_size_of_children(context)
+                    + core::mem::size_of_val(v)
             })
             .sum::<usize>();
         pointers + heap_memory
@@ -46,7 +46,8 @@ impl<P: deepsize::DeepSizeOf + ?Sized, V: deepsize::DeepSizeOf> deepsize::DeepSi
     for HashMap<Box<P>, V>
 {
     fn deep_size_of_children(&self, context: &mut deepsize::Context) -> usize {
-        let pointers = self.0.capacity() * core::mem::size_of::<Box<P>>();
+        let cap = self.0.capacity();
+        let pointers = cap * core::mem::size_of::<Box<P>>();
         let heap_memory = self
             .0
             .iter()
@@ -54,6 +55,7 @@ impl<P: deepsize::DeepSizeOf + ?Sized, V: deepsize::DeepSizeOf> deepsize::DeepSi
                 (**n).deep_size_of_children(context)
                     + core::mem::size_of_val(&**n)
                     + v.deep_size_of_children(context)
+                    + core::mem::size_of_val(v)
             })
             .sum::<usize>();
         pointers + heap_memory
@@ -81,7 +83,7 @@ impl<P: Deref + Eq + Hash, V> HashMap<P, V> {
         self.0.insert(x, v);
     }
     #[inline]
-    pub fn _len(&self) -> usize {
+    pub fn len(&self) -> usize {
         self.0.len()
     }
     #[allow(dead_code)] // maybe unused without `deepsize` feature

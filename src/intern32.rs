@@ -82,24 +82,38 @@ impl<T: 'static + ?Sized> deepsize::DeepSizeOf for Intern32<T> {
     }
 }
 
-#[cfg_attr(docsrs, doc(cfg(all(feature = "deepsize", feature = "intern"))))]
+#[cfg_attr(docsrs, doc(cfg(all(feature = "deepsize", feature = "intern32"))))]
 /// Return the memory used by all interned objects of the given type.
 #[cfg(feature = "deepsize")]
 pub fn deep_size_of_interned<T: Eq + Hash + Send + Sync + 'static + deepsize::DeepSizeOf>() -> usize
 {
     use deepsize::DeepSizeOf;
-    INTERN_CONTAINERS.with(|m: &mut HashSet<&'static T>| -> usize { (*m).deep_size_of() })
+    let set_size = INTERN_CONTAINERS
+        .with(|m: &mut HashMap<&'static T, NonZeroU32>| -> usize { (*m).deep_size_of() });
+    let data = INTERN_DATA.get::<AppendOnlyVec<Box<T>>>();
+    struct Dummy<T: 'static>(&'static AppendOnlyVec<Box<T>>);
+    impl<T: DeepSizeOf> deepsize::DeepSizeOf for Dummy<T> {
+        fn deep_size_of_children(&self, context: &mut deepsize::Context) -> usize {
+            self.0
+                .iter()
+                .map(|v| std::mem::size_of_val(v) + v.deep_size_of_children(context))
+                .sum::<usize>()
+        }
+    }
+    let data_size = Dummy(data).deep_size_of();
+    std::println!("XXXXXXXXXXXXXXXXX set {set_size} data {data_size}");
+    set_size + data_size
 }
 
 #[test]
 fn has_niche() {
     assert_eq!(
         core::mem::size_of::<Intern32<String>>(),
-        core::mem::size_of::<usize>(),
+        core::mem::size_of::<u32>(),
     );
     assert_eq!(
         core::mem::size_of::<Option<Intern32<String>>>(),
-        core::mem::size_of::<usize>(),
+        core::mem::size_of::<u32>(),
     );
 }
 
@@ -244,28 +258,27 @@ impl<T: Eq + Hash + Send + Sync + 'static + ?Sized> Intern32<T> {
     /// See how many objects have been interned.  This may be helpful
     /// in analyzing memory use.
     pub fn num_objects_interned() -> usize {
-        let num_data = INTERN_DATA.get::<AppendOnlyVec<Box<T>>>().len();
-        let num_lookup = INTERN_CONTAINERS.with(|m: &mut HashSet<&'static T>| -> usize { m.len() });
-        debug_assert_eq!(num_data, num_lookup);
-        num_data
+        INTERN_CONTAINERS.with(|m: &mut HashMap<&'static T, NonZeroU32>| -> usize { m.len() })
     }
 
     /// Only for benchmarking, this will cause problems
+    ///
+    /// Note that this does *not* clear out the existing stored values.
     #[cfg(feature = "bench")]
     pub fn benchmarking_only_clear_interns() {
-        INTERN_CONTAINERS.with(|m: &mut HashSet<&'static T>| m.clear())
+        INTERN_CONTAINERS.with(|m: &mut HashMap<&'static T, NonZeroU32>| m.clear())
     }
     /// Check if a value already is interned.
     ///
-    /// If this value has previously been interned, return true, else returns false/// Checking if an object is already interned
+    /// If this value has previously been interned, return true, else returns false
     ///
     /// ```rust
     ///
-    /// use internment::Intern;
+    /// use internment::Intern32;
     ///
     /// assert!(!Intern32::<String>::is_interned("Fortunato"));
     /// let x = Intern32::new("Fortunato".to_string());
-    /// assert!(Intern::<String>::is_interned("Fortunato"));
+    /// assert!(Intern32::<String>::is_interned("Fortunato"));
     ///
     /// assert!(!Intern32::<str>::is_interned("Fortunato"));
     /// let x: Intern32<str> = "Fortunato".into();
@@ -275,7 +288,8 @@ impl<T: Eq + Hash + Send + Sync + 'static + ?Sized> Intern32<T> {
     where
         T: Borrow<Q>,
     {
-        INTERN_CONTAINERS.with(|m: &mut HashSet<&'static T>| -> bool { m.get(val).is_some() })
+        INTERN_CONTAINERS
+            .with(|m: &mut HashMap<&'static T, NonZeroU32>| -> bool { m.get(val).is_some() })
     }
 }
 
@@ -506,8 +520,11 @@ mod intern_tests {
 
     #[cfg(feature = "deepsize")]
     use {
-        super::INTERN_CONTAINERS,
-        crate::{boxedset::HashSet, deep_size_of_interned},
+        super::{
+            deep_size_of_interned, AppendOnlyVec, Box, HashMap, NonZeroU32, INTERN_CONTAINERS,
+            INTERN_DATA,
+        },
+        crate::boxedset::HashSet,
         alloc::sync::Arc,
         deepsize::{Context, DeepSizeOf},
     };
@@ -607,21 +624,22 @@ mod intern_tests {
         let string2 = string1.clone();
         let string3 = string1.clone();
         // 3 string are the same, interned only once
-        let string_size = string1.deep_size_of();
-
-        let _ = Intern32::new(string1);
+        let _ = Intern32::new(string1.clone());
         let _ = Intern32::new(string2);
         let _ = Intern32::new(string3);
         // size of set
-        let set_size =
-            INTERN_CONTAINERS.with(|m: &mut HashSet<&'static String>| core::mem::size_of_val(m));
-        // size of pointers in the set
-        let pointers_in_set_size = INTERN_CONTAINERS.with(|m: &mut HashSet<&'static String>| {
-            core::mem::size_of::<&'static String>() * m.capacity()
-        });
+        let set_size = {
+            use deepsize::DeepSizeOf;
+            let mut set: HashMap<&'static String, u32> = HashMap::new();
+            set.insert(Box::leak(Box::new(string1.clone())), 0_u32);
+            set.deep_size_of()
+        };
+        // size of the data
+        let data_size = 8 + Box::new(string1).deep_size_of();
 
         let interned_size = deep_size_of_interned::<String>();
-        assert_eq!(interned_size, string_size + set_size + pointers_in_set_size);
+        println!("data_size: {data_size}, set_size: {set_size}");
+        assert_eq!(interned_size, set_size + data_size);
     }
 
     #[cfg(feature = "deepsize")]
@@ -685,29 +703,30 @@ mod intern_tests {
         let _ = Intern32::new(a2);
         let _ = Intern32::new(a3);
 
-        // size of set
-        let set_size =
-            INTERN_CONTAINERS.with(|m: &mut HashSet<&'static ArcInside>| core::mem::size_of_val(m));
-        // size of pointers in the set
-        let pointers_in_set_size = INTERN_CONTAINERS.with(|m: &mut HashSet<&'static ArcInside>| {
-            core::mem::size_of::<&'static ArcInside>() * m.capacity()
-        });
+        // size of map
+        let map_size = {
+            use deepsize::DeepSizeOf;
+            let mut map: HashMap<&'static String, u32> = HashMap::new();
+            // The precise values don't matter since the HashMap DeepSizeOf
+            // impelementation doesn't take into account the sizes of keys.
+            map.insert(Box::leak(Box::new("1".to_string())), 0_u32);
+            map.insert(Box::leak(Box::new("2".to_string())), 1_u32);
+            map.insert(Box::leak(Box::new("3".to_string())), 2_u32);
+            map.deep_size_of()
+        };
 
         let interned_size = deep_size_of_interned::<ArcInside>();
 
         println!("string_size: {}", string_size);
         println!("object_size: {}", object_size);
-        println!("set_size: {}", set_size);
-        println!("pointers_in_set_size: {}", pointers_in_set_size);
+        println!("map_size: {map_size}");
         println!("interned_size: {}", interned_size);
 
         // 3 ArcInside has different hash values
-        INTERN_CONTAINERS.with(|m: &mut HashSet<&'static ArcInside>| assert_eq!(m.len(), 3));
+        INTERN_CONTAINERS
+            .with(|m: &mut HashMap<&'static ArcInside, NonZeroU32>| assert_eq!(m.len(), 3));
 
-        assert_eq!(
-            interned_size,
-            string_size + object_size + set_size + pointers_in_set_size
-        );
+        assert_eq!(interned_size, 8 + string_size + object_size + map_size);
     }
 }
 
