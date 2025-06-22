@@ -26,11 +26,13 @@ use serde::{Deserialize, Deserializer, Serialize, Serializer};
 use tinyset::Fits64;
 
 #[cfg_attr(docsrs, doc(cfg(feature = "intern")))]
-/// A reference to an interned object.
+/// A small reference to an interned object.
 ///
-/// The interned object will be held in memory indefinitely.  On the
-/// plus side, this means that lifetime issues are simple when using
-/// `Intern32`.
+/// The interned object will be held in memory indefinitely.  On the plus side,
+/// this means that lifetime issues are simple when using `Intern32`.  It is
+/// also slower to dereference than other intern types, since it uses an
+/// additional layer of indirection to enable `Intern32` to be just a 32-bit
+/// value.
 ///
 /// # Example
 /// ```rust
