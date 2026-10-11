@@ -81,6 +81,7 @@ impl<T: 'static + ?Sized> deepsize::DeepSizeOf for Intern32<T> {
     }
 }
 
+#[cfg(feature = "deepsize")]
 impl<T: Eq + Hash + Send + Sync + 'static + deepsize::DeepSizeOf> Intern32<T> {
     #[cfg_attr(docsrs, doc(cfg(all(feature = "deepsize", feature = "intern32"))))]
     /// Return the memory used by all interned objects of the given type.
