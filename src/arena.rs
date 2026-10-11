@@ -115,7 +115,7 @@ impl<T: Eq + Hash> Arena<T> {
     /// If this value has not previously been interned, then `intern` will
     /// allocate a spot for the value on the heap.  Otherwise, it will return a
     /// pointer to the object previously allocated.
-    pub fn intern(&self, val: T) -> ArenaIntern<T> {
+    pub fn intern(&self, val: T) -> ArenaIntern<'_, T> {
         let mut m = self.get_mut();
         if let Some(b) = m.get(&val) {
             let p = b.as_ref() as *const T;
@@ -153,7 +153,7 @@ impl<T: Eq + Hash + ?Sized> Arena<T> {
             pointer: unsafe { &*p },
         }
     }
-    fn intern_from_owned<I>(&self, val: I) -> ArenaIntern<T>
+    fn intern_from_owned<I>(&self, val: I) -> ArenaIntern<'_, T>
     where
         Box<T>: From<I>,
         I: Eq + core::hash::Hash + AsRef<T>,
@@ -189,7 +189,7 @@ impl Arena<str> {
     /// the provided `String`.  Otherwise, it will free its input `String` and
     /// return a pointer to the `str` previously saved.
     #[inline]
-    pub fn intern_string(&self, val: String) -> ArenaIntern<str> {
+    pub fn intern_string(&self, val: String) -> ArenaIntern<'_, str> {
         self.intern_from_owned(val)
     }
     /// Intern a `Box<str>` as `ArenaIntern<str>`.
@@ -198,7 +198,7 @@ impl Arena<str> {
     /// the provided `Box<str>`.  Otherwise, it will free its input `Box<str>`
     /// and return a pointer to the `str` previously saved.
     #[inline]
-    pub fn intern_box(&self, val: Box<str>) -> ArenaIntern<str> {
+    pub fn intern_box(&self, val: Box<str>) -> ArenaIntern<'_, str> {
         self.intern_from_owned(val)
     }
 }
@@ -236,7 +236,7 @@ impl Arena<core::ffi::CStr> {
     /// assert_eq!(x, y);
     /// ```
     #[inline]
-    pub fn intern_cstring(&self, val: alloc::ffi::CString) -> ArenaIntern<core::ffi::CStr> {
+    pub fn intern_cstring(&self, val: alloc::ffi::CString) -> ArenaIntern<'_, core::ffi::CStr> {
         self.intern_from_owned(val)
     }
     /// Intern a `Box<CStr>` as `ArenaIntern<CStr>`.
@@ -254,7 +254,7 @@ impl Arena<core::ffi::CStr> {
     /// assert_eq!(x, y);
     /// ```
     #[inline]
-    pub fn intern_box(&self, val: Box<core::ffi::CStr>) -> ArenaIntern<core::ffi::CStr> {
+    pub fn intern_box(&self, val: Box<core::ffi::CStr>) -> ArenaIntern<'_, core::ffi::CStr> {
         self.intern_from_owned(val)
     }
 }
@@ -293,7 +293,7 @@ impl Arena<std::ffi::OsStr> {
     /// assert_eq!(x, y);
     /// ```
     #[inline]
-    pub fn intern_osstring(&self, val: std::ffi::OsString) -> ArenaIntern<std::ffi::OsStr> {
+    pub fn intern_osstring(&self, val: std::ffi::OsString) -> ArenaIntern<'_, std::ffi::OsStr> {
         self.intern_from_owned(val)
     }
     /// Intern a `Box<OsStr>` as `ArenaIntern<OsStr>`.
@@ -311,7 +311,7 @@ impl Arena<std::ffi::OsStr> {
     /// assert_eq!(x, y);
     /// ```
     #[inline]
-    pub fn intern_box(&self, val: Box<std::ffi::OsStr>) -> ArenaIntern<std::ffi::OsStr> {
+    pub fn intern_box(&self, val: Box<std::ffi::OsStr>) -> ArenaIntern<'_, std::ffi::OsStr> {
         self.intern_from_owned(val)
     }
 }
@@ -350,7 +350,7 @@ impl Arena<std::path::Path> {
     /// assert_eq!(x, y);
     /// ```
     #[inline]
-    pub fn intern_pathbuf(&self, val: std::path::PathBuf) -> ArenaIntern<std::path::Path> {
+    pub fn intern_pathbuf(&self, val: std::path::PathBuf) -> ArenaIntern<'_, std::path::Path> {
         self.intern_from_owned(val)
     }
     /// Intern a `Box<Path>` as `ArenaIntern<Path>`.
@@ -368,7 +368,7 @@ impl Arena<std::path::Path> {
     /// assert_eq!(x, y);
     /// ```
     #[inline]
-    pub fn intern_box(&self, val: Box<std::path::Path>) -> ArenaIntern<std::path::Path> {
+    pub fn intern_box(&self, val: Box<std::path::Path>) -> ArenaIntern<'_, std::path::Path> {
         self.intern_from_owned(val)
     }
 }
@@ -388,7 +388,7 @@ impl<T: Eq + Hash + Copy> Arena<[T]> {
     /// the provided `Vec<T>`.  Otherwise, it will free its input `Vec<T>` and
     /// return a pointer to the `[T]` previously saved.
     #[inline]
-    pub fn intern_vec(&self, val: Vec<T>) -> ArenaIntern<[T]> {
+    pub fn intern_vec(&self, val: Vec<T>) -> ArenaIntern<'_, [T]> {
         self.intern_from_owned(val)
     }
     /// Intern a `Box<[T]>` as `ArenaIntern<[T]>`.
@@ -397,7 +397,7 @@ impl<T: Eq + Hash + Copy> Arena<[T]> {
     /// the provided `Box<CSr>`.  Otherwise, it will free its input `Box<[T]>`
     /// and return a pointer to the `[T]` previously saved.
     #[inline]
-    pub fn intern_box(&self, val: Box<[T]>) -> ArenaIntern<[T]> {
+    pub fn intern_box(&self, val: Box<[T]>) -> ArenaIntern<'_, [T]> {
         self.intern_from_owned(val)
     }
 }

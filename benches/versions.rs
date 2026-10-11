@@ -41,24 +41,138 @@ random_i64_input!(
 );
 random_u8_input!("Intern<u8>::new", "ArcIntern<u8>::new",);
 
-vs!("Intern<String>::new long", intern_new_long_old, intern_new_long_new, K, s: [&common::Strings] -> [usize] common::build_set(&s.long, K::Intern::new));
-vs!("Intern<String>::new short", intern_new_short_old, intern_new_short_new, K, s: [&common::Strings] -> [usize] common::build_set(&s.short, K::Intern::new));
-vs!("Intern<String>::from long", intern_from_long_old, intern_from_long_new, K, s: [&common::Strings] -> [usize] common::build_set_from_ref(&s.long, |x| K::Intern::<String>::from_ref(x)));
-vs!("Intern<String> lookup", intern_lookup_old, intern_lookup_new, K, s: [&common::Strings] -> [impl FnMut() -> usize] common::lookup(&s.long, &s.long_other, K::Intern::new));
-vs!("Intern<String> sort", intern_sort_old, intern_sort_new, K, s: [&common::Strings] -> [impl FnMut() -> usize] common::sort(&s.long, K::Intern::new));
-vs!("Intern<String> any eq", intern_any_eq_old, intern_any_eq_new, K, s: [&common::Strings] -> [impl FnMut() -> usize] common::any_eq(&s.long, K::Intern::new));
-vs!("Intern<i64>::new random", intern_new_i64_old, intern_new_i64_new, K, x: [&mut i64] -> [()] { K::Intern::new(*x); });
-vs!("Intern<i64>::clone", intern_clone_old, intern_clone_new, K, x: [&i64] -> [impl FnMut() -> i64] { let i = K::Intern::new(*x); move || *i.clone() });
-vs!("Intern<u8>::new", intern_new_u8_old, intern_new_u8_new, K, x: [&mut u8] -> [()] { K::Intern::new(*x); });
-vs!("ArcIntern<String>::new long", arc_new_long_old, arc_new_long_new, K, s: [&common::Strings] -> [usize] common::build_set(&s.long, K::ArcIntern::new));
-vs!("ArcIntern<String>::new short", arc_new_short_old, arc_new_short_new, K, s: [&common::Strings] -> [usize] common::build_set(&s.short, K::ArcIntern::new));
-vs!("ArcIntern<String>::from long", arc_from_long_old, arc_from_long_new, K, s: [&common::Strings] -> [usize] common::build_set_from_ref(&s.long, |x| K::ArcIntern::<String>::from_ref(x)));
-vs!("ArcIntern<String> lookup", arc_lookup_old, arc_lookup_new, K, s: [&common::Strings] -> [impl FnMut() -> usize] common::lookup(&s.long, &s.long_other, K::ArcIntern::new));
-vs!("ArcIntern<String> sort", arc_sort_old, arc_sort_new, K, s: [&common::Strings] -> [impl FnMut() -> usize] common::sort(&s.long, K::ArcIntern::new));
-vs!("ArcIntern<String> any eq", arc_any_eq_old, arc_any_eq_new, K, s: [&common::Strings] -> [impl FnMut() -> usize] common::any_eq(&s.long, K::ArcIntern::new));
-vs!("ArcIntern<i64>::new random", arc_new_i64_old, arc_new_i64_new, K, x: [&mut i64] -> [()] { K::ArcIntern::new(*x); });
-vs!("ArcIntern<i64>::clone", arc_clone_old, arc_clone_new, K, x: [&i64] -> [impl FnMut() -> i64] { let i = K::ArcIntern::new(*x); move || *i.clone() });
-vs!("ArcIntern<u8>::new", arc_new_u8_old, arc_new_u8_new, K, x: [&mut u8] -> [()] { K::ArcIntern::new(*x); });
+vs!(
+    "Intern<String>::new long",
+    intern_new_long_old,
+    intern_new_long_new,
+    |K, s: &common::Strings| -> usize { common::build_set(&s.long, K::Intern::new) }
+);
+vs!(
+    "Intern<String>::new short",
+    intern_new_short_old,
+    intern_new_short_new,
+    |K, s: &common::Strings| -> usize { common::build_set(&s.short, K::Intern::new) }
+);
+vs!(
+    "Intern<String>::from long",
+    intern_from_long_old,
+    intern_from_long_new,
+    |K, s: &common::Strings| -> usize {
+        common::build_set_from_ref(&s.long, |x| K::Intern::<String>::from_ref(x))
+    }
+);
+vs!(
+    "Intern<String> lookup",
+    intern_lookup_old,
+    intern_lookup_new,
+    |K, s: &common::Strings| -> impl FnMut() -> usize {
+        common::lookup(&s.long, &s.long_other, K::Intern::new)
+    }
+);
+vs!(
+    "Intern<String> sort",
+    intern_sort_old,
+    intern_sort_new,
+    |K, s: &common::Strings| -> impl FnMut() -> usize { common::sort(&s.long, K::Intern::new) }
+);
+vs!(
+    "Intern<String> any eq",
+    intern_any_eq_old,
+    intern_any_eq_new,
+    |K, s: &common::Strings| -> impl FnMut() -> usize { common::any_eq(&s.long, K::Intern::new) }
+);
+vs!(
+    "Intern<i64>::new random",
+    intern_new_i64_old,
+    intern_new_i64_new,
+    |K, x: &mut i64| -> () {
+        K::Intern::new(*x);
+    }
+);
+vs!(
+    "Intern<i64>::clone",
+    intern_clone_old,
+    intern_clone_new,
+    |K, x: &i64| -> impl FnMut() -> i64 {
+        let i = K::Intern::new(*x);
+        move || *i.clone()
+    }
+);
+vs!(
+    "Intern<u8>::new",
+    intern_new_u8_old,
+    intern_new_u8_new,
+    |K, x: &mut u8| -> () {
+        K::Intern::new(*x);
+    }
+);
+vs!(
+    "ArcIntern<String>::new long",
+    arc_new_long_old,
+    arc_new_long_new,
+    |K, s: &common::Strings| -> usize { common::build_set(&s.long, K::ArcIntern::new) }
+);
+vs!(
+    "ArcIntern<String>::new short",
+    arc_new_short_old,
+    arc_new_short_new,
+    |K, s: &common::Strings| -> usize { common::build_set(&s.short, K::ArcIntern::new) }
+);
+vs!(
+    "ArcIntern<String>::from long",
+    arc_from_long_old,
+    arc_from_long_new,
+    |K, s: &common::Strings| -> usize {
+        common::build_set_from_ref(&s.long, |x| K::ArcIntern::<String>::from_ref(x))
+    }
+);
+vs!(
+    "ArcIntern<String> lookup",
+    arc_lookup_old,
+    arc_lookup_new,
+    |K, s: &common::Strings| -> impl FnMut() -> usize {
+        common::lookup(&s.long, &s.long_other, K::ArcIntern::new)
+    }
+);
+vs!(
+    "ArcIntern<String> sort",
+    arc_sort_old,
+    arc_sort_new,
+    |K, s: &common::Strings| -> impl FnMut() -> usize { common::sort(&s.long, K::ArcIntern::new) }
+);
+vs!(
+    "ArcIntern<String> any eq",
+    arc_any_eq_old,
+    arc_any_eq_new,
+    |K, s: &common::Strings| -> impl FnMut() -> usize {
+        common::any_eq(&s.long, K::ArcIntern::new)
+    }
+);
+vs!(
+    "ArcIntern<i64>::new random",
+    arc_new_i64_old,
+    arc_new_i64_new,
+    |K, x: &mut i64| -> () {
+        K::ArcIntern::new(*x);
+    }
+);
+vs!(
+    "ArcIntern<i64>::clone",
+    arc_clone_old,
+    arc_clone_new,
+    |K, x: &i64| -> impl FnMut() -> i64 {
+        let i = K::ArcIntern::new(*x);
+        move || *i.clone()
+    }
+);
+vs!(
+    "ArcIntern<u8>::new",
+    arc_new_u8_old,
+    arc_new_u8_new,
+    |K, x: &mut u8| -> () {
+        K::ArcIntern::new(*x);
+    }
+);
 
 fn main() -> Result<(), scaling::RegistrationError> {
     common::config(0.01, 10.0).run_and_print()

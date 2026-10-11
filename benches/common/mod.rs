@@ -7,7 +7,7 @@
 //! and is confined to the `vs!` macro below and to `controls.rs`, so that
 //! moving the comparison to a newer release is a change to one line of
 //! `Cargo.toml` (see `plans/scaling-0.9.md`).
-#![allow(dead_code)]
+#![allow(dead_code, unused_macros)]
 
 use std::cell::RefCell;
 use std::collections::HashSet;
@@ -106,18 +106,18 @@ macro_rules! random_u8_input {
 
 /// Two candidates of a group, the baseline running the body against the
 /// previously published release (`internment_old`) and the other against this
-/// one, with the crate named by `$k` inside the body.  The types are token
-/// trees, not `ty` fragments, because `scaling`'s attributes do not see
-/// through the invisible group around a `ty` and take `&I` for an input by value.
+/// one, with the crate named by `$k` inside the body.
 macro_rules! vs {
-    ($group:literal, $old:ident, $new:ident, $k:ident, $arg:ident: [$($ty:tt)+] -> [$($ret:tt)+] $body:expr) => {
+    ($group:literal, $old:ident, $new:ident, |$k:ident, $arg:ident: $ty:ty| -> $ret:ty $body:block) => {
         #[scaling::bench(group = $group, name = "old", baseline)]
-        fn $old($arg: $($ty)+) -> $($ret)+ {
+        #[allow(unused_braces)]
+        fn $old($arg: $ty) -> $ret {
             use ::internment_old as $k;
             $body
         }
         #[scaling::bench(group = $group, name = "new")]
-        fn $new($arg: $($ty)+) -> $($ret)+ {
+        #[allow(unused_braces)]
+        fn $new($arg: $ty) -> $ret {
             use ::internment as $k;
             $body
         }

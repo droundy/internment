@@ -557,10 +557,6 @@ impl<T: ?Sized + Eq + Hash + Send + Sync + Debug> Debug for ArcIntern<T> {
 #[derive(Eq, PartialEq, Hash)]
 pub struct TestStructCount(String, u64, alloc::sync::Arc<bool>);
 
-#[cfg(test)]
-#[derive(Eq, PartialEq, Hash)]
-pub struct TestStruct(String, u64);
-
 // Quickly create and destroy a small number of interned objects from
 // multiple threads.
 #[test]

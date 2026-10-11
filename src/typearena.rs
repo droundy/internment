@@ -5,7 +5,9 @@ use core::{
     any::{Any, TypeId},
     hash::{Hash, Hasher},
 };
-use std::{ffi::OsStr, path::Path, println};
+#[cfg(feature = "tinyset")]
+use std::println;
+use std::{ffi::OsStr, path::Path};
 
 #[cfg(test)]
 use alloc::{
@@ -575,10 +577,6 @@ fn test_intern_num_objects() {
         assert_eq!(Intern::<i32>::num_objects_interned(), 3);
     }
 }
-
-#[cfg(test)]
-#[derive(Eq, PartialEq, Hash)]
-pub struct TestStructCount(String, u64, alloc::sync::Arc<bool>);
 
 #[cfg(test)]
 #[derive(Eq, PartialEq, Hash)]

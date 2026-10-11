@@ -260,10 +260,10 @@ Differences from the plan above, found while implementing:
 - `benches/contended.rs` holds both the contended and the uncontended
   variants of each workload (one group each), not just the contended ones;
   `versions.rs` and `libraries.rs` are the micro-benchmarks.
-- `scaling`'s attributes do not see through a `ty` fragment of `macro_rules!`
-  (an invisible group): `x: &I` arrives as an input taken by value and is
-  rejected. `vs!` therefore takes types as `[$($ty:tt)+]`. Worth telling
-  scaling.
+- scaling 0.9.0's attributes did not see through a `ty` fragment of
+  `macro_rules!` (an invisible group): `x: &I` arrived as an input taken by
+  value and was rejected, so `vs!` took types as token trees. Fixed in scaling
+  0.9.1, which this uses; `vs!` and `twins!` take plain `$ty:ty`.
 - `internment_old` needs its default features (for `Intern`) as well as
   `bench` (for `benchmarking_only_clear_interns`); `bench` alone does not
   enable `intern`.

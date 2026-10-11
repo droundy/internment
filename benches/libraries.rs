@@ -35,6 +35,7 @@ random_i64_input!("new i64", "clone i64");
 macro_rules! string_candidates {
     ($m:ident, $label:literal, $ctor:expr $(, baseline $base:ident)?) => {
         mod $m {
+            #[allow(unused_imports)] // not every candidate names a type from here
             use super::*;
 
             #[scaling::bench(group = "new long", name = $label $(, $base)?)]
@@ -75,6 +76,7 @@ string_candidates!(arc_interner, "arc_interner", |s: String| {
 macro_rules! int_candidates {
     ($m:ident, $label:literal, $new:expr $(, baseline $base:ident)?) => {
         mod $m {
+            #[allow(unused_imports)] // not every candidate names a type from here
             use super::*;
 
             #[scaling::bench(group = "new i64", name = $label $(, $base)?)]
