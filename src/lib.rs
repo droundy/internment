@@ -62,7 +62,7 @@ mod typearena;
 #[cfg(feature = "_experimental-new-intern")]
 pub use typearena::Intern as NewIntern;
 
-#[cfg(feature = "intern")]
+#[cfg(any(feature = "intern", feature = "intern32"))]
 mod container;
 
 #[cfg(feature = "intern")]

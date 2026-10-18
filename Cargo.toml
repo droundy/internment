@@ -46,7 +46,7 @@ scaling = { version = "0.9.1", optional = true }
 criterion = { version = "0.4", features = ["html_reports"], optional = true }
 internment_old = { package = "internment", version = "=0.8.6", features = ["bench"], optional = true }
 
-append-only-vec = { version = "0.1.7", optional = true }
+append-only-vec = { version = "0.1.9", default-features = false, optional = true }
 
 spin = { version = "0.9.8", default-features = false, optional = true, features = [
   "spin_mutex",
@@ -64,13 +64,17 @@ bench = ["arc", "arena", "_experimental-new-intern", "dep:memorable-wordlist"]
 benchmarks = ["bench", "intern32", "dep:arc-interner", "dep:scaling", "dep:internment_old", "dep:criterion"]
 arena = ["alloc"]
 intern = ["alloc", "dep:append-only-vec"]
-intern32 = ["alloc"]
+intern32 = ["alloc", "dep:append-only-vec"]
 default = ["intern", "std"]
 _experimental-new-intern = ["alloc", "dep:append-only-vec"]
-std = ["alloc"]
+std = ["alloc", "append-only-vec?/std"]
 alloc = ["serde?/alloc"]
 tinyset = ["std", "dep:tinyset"]
-portable-atomic = ["dep:portable-atomic", "spin?/portable_atomic"]
+portable-atomic = [
+    "dep:portable-atomic",
+    "spin?/portable_atomic",
+    "append-only-vec?/portable-atomic",
+]
 critical-section = ["portable-atomic?/critical-section"]
 
 [dev-dependencies]
