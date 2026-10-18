@@ -58,7 +58,7 @@ use tinyset::Fits64;
 /// ```
 pub struct Intern32<T: 'static + ?Sized> {
     index: NonZeroU32,
-    _phantom: std::marker::PhantomData<T>,
+    _phantom: core::marker::PhantomData<T>,
 }
 
 #[test]
@@ -95,12 +95,11 @@ impl<T: Eq + Hash + Send + Sync + 'static + deepsize::DeepSizeOf> Intern32<T> {
             fn deep_size_of_children(&self, context: &mut deepsize::Context) -> usize {
                 self.0
                     .iter()
-                    .map(|v| std::mem::size_of_val(v) + v.deep_size_of_children(context))
+                    .map(|v| core::mem::size_of_val(v) + v.deep_size_of_children(context))
                     .sum::<usize>()
             }
         }
         let data_size = Dummy(data).deep_size_of();
-        std::println!("XXXXXXXXXXXXXXXXX set {set_size} data {data_size}");
         set_size + data_size
     }
 }
@@ -179,7 +178,7 @@ macro_rules! create_intern {
             });
             Intern32 {
                 index,
-                _phantom: std::marker::PhantomData,
+                _phantom: core::marker::PhantomData,
             }
         })
     };
@@ -329,7 +328,7 @@ impl<T: Debug + Sync + Send> Fits64 for Intern32<T> {
     unsafe fn from_u64(x: u64) -> Self {
         Intern32 {
             index: NonZeroU32::new(x as u32 + 1).unwrap(),
-            _phantom: std::marker::PhantomData,
+            _phantom: core::marker::PhantomData,
         }
     }
     fn to_u64(self) -> u64 {
