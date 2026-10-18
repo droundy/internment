@@ -595,3 +595,92 @@ fn ref_to_string() {
     let x = arena.intern_from("hello");
     assert_eq!("hello", &*x);
 }
+
+#[test]
+fn str_from_owned_and_boxed() {
+    let arena = Arena::<str>::new();
+    let borrowed = arena.intern("hello");
+    // The owned and boxed versions are the same value, so the same interned data.
+    assert_eq!(borrowed, arena.intern_string(String::from("hello")));
+    assert_eq!(borrowed, arena.intern_box(Box::<str>::from("hello")));
+    assert_ne!(borrowed, arena.intern_string(String::from("world")));
+    assert_ne!(borrowed, arena.intern_box(Box::<str>::from("world")));
+}
+
+#[test]
+fn cstr_from_borrowed_owned_and_boxed() {
+    use alloc::ffi::CString;
+    use core::ffi::CStr;
+    let arena = Arena::<CStr>::new();
+    let borrowed = arena.intern(CStr::from_bytes_with_nul(b"hello\0").unwrap());
+    assert_eq!(
+        borrowed,
+        arena.intern_cstring(CString::new("hello").unwrap())
+    );
+    assert_eq!(
+        borrowed,
+        arena.intern_box(CString::new("hello").unwrap().into_boxed_c_str())
+    );
+    assert_ne!(
+        borrowed,
+        arena.intern_cstring(CString::new("world").unwrap())
+    );
+    assert_ne!(
+        borrowed,
+        arena.intern_box(CString::new("world").unwrap().into_boxed_c_str())
+    );
+}
+
+#[cfg(feature = "std")]
+#[test]
+fn osstr_from_borrowed_owned_and_boxed() {
+    use std::ffi::{OsStr, OsString};
+    let arena = Arena::<OsStr>::new();
+    let borrowed = arena.intern(OsStr::new("hello"));
+    assert_eq!(borrowed, arena.intern_osstring(OsString::from("hello")));
+    assert_eq!(
+        borrowed,
+        arena.intern_box(OsString::from("hello").into_boxed_os_str())
+    );
+    assert_ne!(borrowed, arena.intern_osstring(OsString::from("world")));
+    assert_ne!(
+        borrowed,
+        arena.intern_box(OsString::from("world").into_boxed_os_str())
+    );
+}
+
+#[cfg(feature = "std")]
+#[test]
+fn path_from_borrowed_owned_and_boxed() {
+    use std::path::{Path, PathBuf};
+    let arena = Arena::<Path>::new();
+    let borrowed = arena.intern(Path::new("a/b"));
+    assert_eq!(borrowed, arena.intern_pathbuf(PathBuf::from("a/b")));
+    assert_eq!(
+        borrowed,
+        arena.intern_box(PathBuf::from("a/b").into_boxed_path())
+    );
+    assert_ne!(borrowed, arena.intern_pathbuf(PathBuf::from("a/c")));
+    assert_ne!(
+        borrowed,
+        arena.intern_box(PathBuf::from("a/c").into_boxed_path())
+    );
+}
+
+#[test]
+fn slice_from_borrowed_owned_and_boxed() {
+    use alloc::vec;
+    let arena = Arena::<[u8]>::new();
+    let borrowed = arena.intern(&[1, 2, 3][..]);
+    assert_eq!(borrowed, arena.intern_vec(vec![1, 2, 3]));
+    assert_eq!(borrowed, arena.intern_box(vec![1, 2, 3].into_boxed_slice()));
+    assert_ne!(borrowed, arena.intern_vec(vec![1, 2, 4]));
+    assert_ne!(borrowed, arena.intern_box(vec![1, 2, 4].into_boxed_slice()));
+}
+
+#[test]
+fn intern_ref_matches_intern() {
+    let arena = Arena::<str>::new();
+    let borrowed = arena.intern("hello");
+    assert_eq!(borrowed, arena.intern_ref("hello"));
+}
