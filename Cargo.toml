@@ -11,7 +11,7 @@ repository = "https://github.com/droundy/internment"
 readme = "README.md"
 categories = ["caching", "memory-management", "concurrency"]
 keywords = ["hash", "interning", "hashconsing", "caching", "interner"]
-rust-version = "1.70"
+rust-version = "1.71"
 
 # Ensures dev-dependencies to enable features on standard dependencies unless compiling examples,
 # tests, etc.

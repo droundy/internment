@@ -15,7 +15,7 @@ shim, so this is a rewrite of the bench file, not a version bump.
 ## Facts this rests on
 
 - `scaling` / `scaling-macros` 0.9.0 are on crates.io; scaling's
-  `rust-version` is 1.81 (internment's is 1.70).
+  `rust-version` is 1.81 (internment's is 1.71).
 - **Verified:** a crate with `scaling = "0.9.0"` as a *dev*-dependency fails
   `cargo +1.71.0 test --no-run` with "package `scaling-macros v0.9.0` cannot be
   built because it requires rustc 1.81". The `msrv` CI job runs `cargo test`,
@@ -33,7 +33,7 @@ shim, so this is a rewrite of the bench file, not a version bump.
   regardless of scaling (`Cargo.lock` is gitignored, so CI resolves fresh); I
   could not see recent CI runs to confirm. My scratch check of scaling's effect
   was done with criterion removed. Decide separately whether to pin, drop
-  criterion from the 1.70 job, or bump the job (see step 2).
+  criterion from the 1.71 job, or bump the job (see step 2).
 - **Verified:** `cargo check --benches --features bench` already fails on
   master: `bench.rs` uses `arc_interner::ArcIntern`, but the `bench` feature
   does not enable the optional `arc-interner` dependency. Fixed in step 1.
@@ -218,7 +218,7 @@ be compared against *with the same harness*. Each release then runs:
 8. **Docs and CI**: a "Benchmarking" note in README (the commands, the
    align-functions flag, `quiet-bench`, `SCALING_NO_PIN`); CHANGELOG notes the
    new `benchmarks` feature; CI gets
-   `cargo check --benches --features benchmarks` on stable only (not on 1.70).
+   `cargo check --benches --features benchmarks` on stable only (not on 1.71).
 
 ## Answers from the scaling session (2026-10-10)
 
