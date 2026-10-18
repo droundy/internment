@@ -50,7 +50,7 @@ jobs:
       - uses: dtolnay/rust-toolchain@stable
         with:
           toolchain: ${{ matrix.rust }}
-      - run: cargo doc --all-features
+      - run: cargo doc --features "arc,arena,intern,intern32,std,tinyset,serde,deepsize,spin,portable-atomic,critical-section,bench"
         env:
           RUSTFLAGS: --cfg docsrs
           RUSTDOCFLAGS: --cfg docsrs -Dwarnings
