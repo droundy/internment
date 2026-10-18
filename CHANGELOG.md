@@ -1,3 +1,7 @@
+* Unreleased
+
+    - Increased MSRV to 1.71.
+
 * 0.8.6 - September 14 2024
 
     - Added `AsRef` implementations for `OsStr` and `Path` (thanks @GrigorenkoPV).
