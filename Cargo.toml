@@ -43,6 +43,7 @@ arc-interner = { version = "0.7", optional = true }
 # Only for the benchmarks (see the `benchmarks` feature).  `internment_old` is the
 # previously published release, which the benchmarks compare this one with.
 scaling = { version = "0.9.1", optional = true }
+criterion = { version = "0.4", features = ["html_reports"], optional = true }
 internment_old = { package = "internment", version = "=0.8.6", features = ["bench"], optional = true }
 
 append-only-vec = { version = "0.1.7", optional = true }
@@ -60,7 +61,7 @@ arc = ["std", "dep:ahash", "dep:dashmap", "dep:once_cell"]
 # benchmarks of the *next* release enable on this one.
 bench = ["arc", "arena", "_experimental-new-intern", "dep:memorable-wordlist"]
 # Everything the benchmarks in `benches/` need.  Not part of the public API.
-benchmarks = ["bench", "intern32", "dep:arc-interner", "dep:scaling", "dep:internment_old"]
+benchmarks = ["bench", "intern32", "dep:arc-interner", "dep:scaling", "dep:internment_old", "dep:criterion"]
 arena = ["alloc"]
 intern = ["alloc", "dep:append-only-vec"]
 intern32 = ["alloc"]
@@ -73,9 +74,7 @@ portable-atomic = ["dep:portable-atomic", "spin?/portable_atomic"]
 critical-section = ["portable-atomic?/critical-section"]
 
 [dev-dependencies]
-rand = "0.7.2"
 serde_json = "1.0.87"
-criterion = { version = "0.4", features = ["html_reports"] }
 
 # [profile.release]
 # debug = true
@@ -110,4 +109,4 @@ required-features = ["benchmarks"]
 [[bench]]
 name = "get_container"
 harness = false
-required-features = ["bench"]
+required-features = ["benchmarks"]

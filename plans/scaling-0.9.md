@@ -281,3 +281,9 @@ Differences from the plan above, found while implementing:
   a second package; they separate the benchmark code from the library only.
 - The CI `msrv` job's `cargo test` is expected to fail from a fresh resolve
   because of `criterion`'s dependencies, independent of this change.
+- `criterion` (used only by `get_container.rs`) is likewise an optional
+  dependency behind `benchmarks`, and the unused `rand` dev-dependency is gone:
+  a dev-dependency is built by every `cargo test`, and `criterion` 0.4's
+  dependencies (`half`, `textwrap`, `rayon-core`, ...) need Rust 1.80-1.88, which
+  failed the MSRV job's `cargo test` on a fresh resolve. Now `cargo +1.71 test`
+  builds only `serde_json` besides the crate's own dependencies.
