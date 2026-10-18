@@ -55,6 +55,13 @@ extern crate alloc;
 
 mod boxedset;
 
+#[cfg(any(
+    feature = "intern",
+    feature = "intern32",
+    feature = "_experimental-new-intern"
+))]
+mod type_bucket;
+
 #[cfg(feature = "_experimental-new-intern")]
 mod typearena;
 
