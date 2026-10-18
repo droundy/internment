@@ -81,8 +81,10 @@ serde_json = "1.0.87"
 
 # docs.rs-specific configuration
 [package.metadata.docs.rs]
-# document all features
-all-features = true
+# Document every feature except `benchmarks`, which only adds the benchmarks'
+# dependencies (one of which is another release of this crate, with the same
+# name, and others do not build with docs.rs's nightly).
+features = ["arc", "arena", "intern", "intern32", "std", "tinyset", "serde", "deepsize", "spin", "portable-atomic", "critical-section", "bench"]
 # defines the configuration attribute `docsrs`
 rustdoc-args = ["--cfg", "docsrs"]
 
