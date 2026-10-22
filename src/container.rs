@@ -1,9 +1,6 @@
+use crate::type_bucket::{type_bucket, TYPE_BUCKETS};
 use alloc::{boxed::Box, vec::Vec};
-use core::{
-    any::{Any, TypeId},
-    hash::{Hash, Hasher},
-    ops::DerefMut,
-};
+use core::{any::Any, ops::DerefMut};
 
 #[cfg(not(any(feature = "std", feature = "spin")))]
 compile_error!(
@@ -62,9 +59,8 @@ impl TypeHolderSendCell {
     }
 }
 
-const INTERN_CONTAINER_COUNT: usize = 32;
 pub struct Arena {
-    containers: [TypeHolderSendCell; INTERN_CONTAINER_COUNT],
+    containers: [TypeHolderSendCell; TYPE_BUCKETS],
 }
 
 impl Arena {
@@ -72,7 +68,7 @@ impl Arena {
         #[allow(clippy::declare_interior_mutable_const)]
         const CONTAINER: TypeHolderSendCell = TypeHolderSendCell::new();
         Arena {
-            containers: [CONTAINER; INTERN_CONTAINER_COUNT],
+            containers: [CONTAINER; TYPE_BUCKETS],
         }
     }
 
@@ -81,46 +77,7 @@ impl Arena {
         F: FnOnce(&mut T) -> R,
         T: Any + Send + Default,
     {
-        // Compute the hash of the type.
-        fn hash_of_type<T: 'static>() -> u64 {
-            // We use very simple hasher, because it is optimized away to a constant:
-            // https://rust.godbolt.org/z/4T1fa4GGs
-            // which is not true for using `DefaultHasher`:
-            // https://rust.godbolt.org/z/qKar1WKfz
-            struct HasherForTypeId {
-                hash: u64,
-            }
-
-            impl Hasher for HasherForTypeId {
-                fn write(&mut self, bytes: &[u8]) {
-                    // Hash for type only calls `write_u64` once,
-                    // but handle this case explicitly to make sure
-                    // this code doesn't break if stdlib internals change.
-
-                    for byte in bytes {
-                        self.hash = self.hash.wrapping_mul(31).wrapping_add(*byte as u64);
-                    }
-                }
-
-                fn write_u64(&mut self, v: u64) {
-                    self.hash = v;
-                }
-
-                fn finish(&self) -> u64 {
-                    self.hash
-                }
-            }
-
-            let mut hasher = HasherForTypeId { hash: 0 };
-            TypeId::of::<T>().hash(&mut hasher);
-            hasher.finish()
-        }
-
-        f(
-            self.containers[hash_of_type::<T>() as usize % INTERN_CONTAINER_COUNT]
-                .get_mut()
-                .get_type_mut(),
-        )
+        f(self.containers[type_bucket::<T>()].get_mut().get_type_mut())
     }
 }
 

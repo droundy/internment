@@ -109,6 +109,32 @@ impl<T: ?Sized> Arena<T> {
         }
     }
 }
+impl<T: Eq + Hash + ?Sized> Arena<T> {
+    /// Return the interned copy of `val`, first storing `into_box(val)` in the
+    /// arena if no equal value is there yet.
+    fn intern_with<Q, V>(&self, val: V, into_box: impl FnOnce(V) -> Box<T>) -> ArenaIntern<'_, T>
+    where
+        Q: Eq + Hash + ?Sized,
+        T: Borrow<Q>,
+        V: Borrow<Q>,
+    {
+        let mut m = self.get_mut();
+        let p: *const T = if let Some(b) = m.get(val.borrow()) {
+            &**b
+        } else {
+            let b = into_box(val);
+            let p: *const T = &*b;
+            m.insert(b);
+            p
+        };
+        // SAFETY: the `Box` is never removed from the arena (so its contents
+        // never move or get freed) until the arena itself is dropped, and the
+        // returned `ArenaIntern` borrows the arena.
+        ArenaIntern {
+            pointer: unsafe { &*p },
+        }
+    }
+}
 impl<T: Eq + Hash> Arena<T> {
     /// Intern a value.
     ///
@@ -116,19 +142,7 @@ impl<T: Eq + Hash> Arena<T> {
     /// allocate a spot for the value on the heap.  Otherwise, it will return a
     /// pointer to the object previously allocated.
     pub fn intern(&self, val: T) -> ArenaIntern<'_, T> {
-        let mut m = self.get_mut();
-        if let Some(b) = m.get(&val) {
-            let p = b.as_ref() as *const T;
-            return ArenaIntern {
-                pointer: unsafe { &*p },
-            };
-        }
-        let b = Box::new(val);
-        let p = b.as_ref() as *const T;
-        m.insert(b);
-        ArenaIntern {
-            pointer: unsafe { &*p },
-        }
+        self.intern_with(val, Box::new)
     }
 }
 impl<T: Eq + Hash + ?Sized> Arena<T> {
@@ -139,38 +153,14 @@ impl<T: Eq + Hash + ?Sized> Arena<T> {
         Box<T>: From<&'b I>,
         I: Eq + core::hash::Hash + ?Sized,
     {
-        let mut m = self.get_mut();
-        if let Some(b) = m.get(val) {
-            let p = b.as_ref() as *const T;
-            return ArenaIntern {
-                pointer: unsafe { &*p },
-            };
-        }
-        let b: Box<T> = val.into();
-        let p = b.as_ref() as *const T;
-        m.insert(b);
-        ArenaIntern {
-            pointer: unsafe { &*p },
-        }
+        self.intern_with(val, Box::from)
     }
     fn intern_from_owned<I>(&self, val: I) -> ArenaIntern<'_, T>
     where
         Box<T>: From<I>,
-        I: Eq + core::hash::Hash + AsRef<T>,
+        I: Borrow<T>,
     {
-        let mut m = self.get_mut();
-        if let Some(b) = m.get(val.as_ref()) {
-            let p = b.as_ref() as *const T;
-            return ArenaIntern {
-                pointer: unsafe { &*p },
-            };
-        }
-        let b: Box<T> = val.into();
-        let p = b.as_ref() as *const T;
-        m.insert(b);
-        ArenaIntern {
-            pointer: unsafe { &*p },
-        }
+        self.intern_with(val, Box::from)
     }
 }
 impl Arena<str> {
@@ -408,19 +398,7 @@ impl<T: Eq + Hash + ?Sized> Arena<T> {
         T: 'a + Borrow<I> + From<&'b I>,
         I: Eq + core::hash::Hash + ?Sized,
     {
-        let mut m = self.get_mut();
-        if let Some(b) = m.get(val) {
-            let p = b.as_ref() as *const T;
-            return ArenaIntern {
-                pointer: unsafe { &*p },
-            };
-        }
-        let b: Box<T> = Box::new(val.into());
-        let p = b.as_ref() as *const T;
-        m.insert(b);
-        ArenaIntern {
-            pointer: unsafe { &*p },
-        }
+        self.intern_with(val, |val| Box::new(T::from(val)))
     }
 }
 

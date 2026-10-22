@@ -1,8 +1,9 @@
 #![deny(missing_docs)]
+use crate::type_bucket::{type_bucket, TYPE_BUCKETS};
 use alloc::boxed::Box;
 use append_only_vec::AppendOnlyVec;
 use core::{
-    any::{Any, TypeId},
+    any::Any,
     hash::{Hash, Hasher},
 };
 #[cfg(feature = "tinyset")]
@@ -17,66 +18,30 @@ use alloc::{
 
 struct AnySend(Box<dyn Any + Send + Sync>);
 
-const CONTAINER_COUNT: usize = 32;
 #[allow(clippy::declare_interior_mutable_const)]
 const CONTAINER: AppendOnlyVec<AnySend> = AppendOnlyVec::new();
-static CONTAINERS: [AppendOnlyVec<AnySend>; CONTAINER_COUNT] = [CONTAINER; CONTAINER_COUNT];
+static CONTAINERS: [AppendOnlyVec<AnySend>; TYPE_BUCKETS] = [CONTAINER; TYPE_BUCKETS];
 
 pub fn with_mutex_hashset<F, T, R>(f: F) -> R
 where
     F: FnOnce(&mut HashSet<T>) -> R,
     T: Any + Send + Sync,
 {
-    // Compute the hash of the type.
-    fn hash_of_type<T: 'static>() -> usize {
-        // We use very simple hasher, because it is optimized away to a constant:
-        // https://rust.godbolt.org/z/4T1fa4GGs
-        // which is not true for using `DefaultHasher`:
-        // https://rust.godbolt.org/z/qKar1WKfz
-        struct HasherForTypeId {
-            hash: u64,
-        }
-
-        impl Hasher for HasherForTypeId {
-            fn write(&mut self, bytes: &[u8]) {
-                // Hash for type only calls `write_u64` once,
-                // but handle this case explicitly to make sure
-                // this code doesn't break if stdlib internals change.
-
-                for byte in bytes {
-                    self.hash = self.hash.wrapping_mul(31).wrapping_add(*byte as u64);
-                }
-            }
-
-            fn write_u64(&mut self, v: u64) {
-                self.hash = v;
-            }
-
-            fn finish(&self) -> u64 {
-                self.hash
-            }
-        }
-
-        let mut hasher = HasherForTypeId { hash: 0 };
-        TypeId::of::<Mutex<HashSet<T>>>().hash(&mut hasher);
-        hasher.hash as usize
-    }
-
     use core::ops::DerefMut;
-    for v in CONTAINERS[hash_of_type::<T>() % CONTAINER_COUNT].iter() {
+    for v in CONTAINERS[type_bucket::<Mutex<HashSet<T>>>()].iter() {
         if let Some(m) = v.0.downcast_ref::<Mutex<HashSet<T>>>() {
             let mut m = m.lock().unwrap();
             return f(m.deref_mut());
         }
     }
     let default: Mutex<HashSet<T>> = Mutex::new(HashSet::new());
-    CONTAINERS[hash_of_type::<T>() % CONTAINER_COUNT].push(AnySend(Box::new(default)));
+    CONTAINERS[type_bucket::<Mutex<HashSet<T>>>()].push(AnySend(Box::new(default)));
     // We now search through the AppendOnlyVec, just in case there was a race
     // and two things of the same type got pushed sumultaneously.  If that
     // happens, we'll just use the first one.  It's a little hokey leaving this
     // race condition here, but at worst it should just slow down access to a
     // different type.
-    for v in CONTAINERS[hash_of_type::<T>() % CONTAINER_COUNT].iter() {
+    for v in CONTAINERS[type_bucket::<Mutex<HashSet<T>>>()].iter() {
         if let Some(m) = v.0.downcast_ref::<Mutex<HashSet<T>>>() {
             let mut m = m.lock().unwrap();
             return f(m.deref_mut());
