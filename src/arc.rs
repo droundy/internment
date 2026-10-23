@@ -129,6 +129,14 @@ impl<T: ?Sized> Borrow<RefCount<T>> for BoxRefCount<T> {
         &self.0
     }
 }
+
+impl<T: ?Sized + BorrowStr> Borrow<str> for BoxRefCount<T> {
+    #[inline(always)]
+    fn borrow(&self) -> &str {
+        &self.0.data.borrow()
+    }
+}
+
 impl<T: ?Sized> Deref for BoxRefCount<T> {
     type Target = T;
     #[inline(always)]
@@ -266,6 +274,60 @@ impl<T: Eq + Hash + Send + Sync + 'static> ArcIntern<T> {
             #[cfg(feature = "std")]
             std::thread::yield_now();
         }
+    }
+}
+
+/// internal trait that allows us to specialize the `Borrow` trait for `str`
+/// avoid the need to create an owned value first.
+pub trait BorrowStr: Borrow<str> {}
+
+impl BorrowStr for String {}
+
+/// BorrowStr specialization
+impl<T: ?Sized + Eq + Hash + Send + Sync + 'static> ArcIntern<T> {
+    /// Intern a value from a reference with atomic reference counting.
+    ///
+    /// this is a fast-path for str, as it avoids the need to create owned
+    /// value first.
+    pub fn from_str<Q: AsRef<str>>(val: Q) -> ArcIntern<T>
+    where
+        T: BorrowStr + for<'a> From<&'a str>,
+    {
+        // No reference only fast-path as
+        // the trait `std::borrow::Borrow<Q>` is not implemented for `Arc<T>`
+        Self::new_from_str(val.as_ref())
+    }
+
+    /// Intern a value from a reference with atomic reference counting.
+    ///
+    /// If this value has not previously been
+    /// interned, then `new` will allocate a spot for the value on the
+    /// heap and generate that value using `T::from(val)`.
+    fn new_from_str<'a>(val: &'a str) -> ArcIntern<T>
+    where
+        T: BorrowStr + From<&'a str>,
+    {
+        let m = Self::get_container();
+        if let Some(b) = m.get(val) {
+            let b = b.key();
+            // First increment the count.  We are holding the write mutex here.
+            // Has to be the write mutex to avoid a race
+            let oldval = b.0.count.fetch_add(1, Ordering::SeqCst);
+            if oldval != 0 {
+                // we can only use this value if the value is not about to be freed
+                return ArcIntern {
+                    pointer: std::ptr::NonNull::from(b.0.borrow()),
+                };
+            } else {
+                // we have encountered a race condition here.
+                // we will just wait for the object to finish
+                // being freed.
+                b.0.count.fetch_sub(1, Ordering::SeqCst);
+            }
+        }
+
+        // start over with the new value
+        Self::new(val.into())
     }
 }
 
@@ -641,4 +703,15 @@ fn test_shrink_to_fit() {
     assert!(ArcIntern::<Value>::get_container().capacity() >= 1);
     ArcIntern::<Value>::shrink_to_fit();
     assert_eq!(0, ArcIntern::<Value>::get_container().capacity());
+}
+
+#[test]
+fn test_from_str() {
+    let x = ArcIntern::new("hello".to_string());
+    let y = ArcIntern::<String>::from_str("world");
+    assert_ne!(x, y);
+    assert_eq!(x, ArcIntern::from_ref("hello"));
+    assert_eq!(x, ArcIntern::from_str("hello"));
+    assert_eq!(y, ArcIntern::from_ref("world"));
+    assert_eq!(&*x, "hello");
 }

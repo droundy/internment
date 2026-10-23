@@ -14,14 +14,45 @@ struct NewType<T>(T);
 
 fn bench_get_container(c: &mut Criterion) {
     let mut group = c.benchmark_group("cached");
+    let vals: Vec<_> = (0..RANGE).map(|idx| format!("short-{}", idx)).collect();
+
     // time:   [17.635 ms 17.707 ms 17.782 ms]
     group.bench_function(BenchmarkId::new("String", "short"), |b| {
         b.iter_batched(
             || {},
             |_| {
-                let mut ans = Vec::with_capacity(RANGE);
+                let mut ans = Vec::with_capacity(ITER);
                 for idx in 0..ITER {
-                    let s = ArcIntern::<String>::new(format!("short-{}", idx % RANGE));
+                    let s = ArcIntern::<String>::new(vals[idx % RANGE].clone());
+                    ans.push(s);
+                }
+            },
+            criterion::BatchSize::PerIteration,
+        );
+    });
+    group.bench_function(BenchmarkId::new("String", "short-from_ref"), |b| {
+        b.iter_batched(
+            || {},
+            |_| {
+                let mut ans = Vec::with_capacity(ITER);
+                for idx in 0..ITER {
+                    let s = ArcIntern::<String>::from_ref(&vals[idx % RANGE]);
+
+                    ans.push(s);
+                }
+            },
+            criterion::BatchSize::PerIteration,
+        );
+    });
+
+    group.bench_function(BenchmarkId::new("String", "short-from_str"), |b| {
+        b.iter_batched(
+            || {},
+            |_| {
+                let mut ans = Vec::with_capacity(ITER);
+                for idx in 0..ITER {
+                    let s = ArcIntern::<String>::from_str(&vals[idx % RANGE]);
+
                     ans.push(s);
                 }
             },
@@ -30,18 +61,18 @@ fn bench_get_container(c: &mut Criterion) {
     });
     group.finish();
 
+    let new_vals: Vec<_> = (0..RANGE)
+        .map(|idx| NewType(format!("short-{}", idx)))
+        .collect();
     let mut group = c.benchmark_group("uncached");
     // time:   [22.209 ms 22.294 ms 22.399 ms] => that's 26% faster!
     group.bench_function(BenchmarkId::new("NewType<String>", "short"), |b| {
         b.iter_batched(
             || {},
             |_| {
-                let mut ans = Vec::with_capacity(RANGE);
+                let mut ans = Vec::with_capacity(ITER);
                 for idx in 0..ITER {
-                    let s = ArcIntern::<NewType<String>>::new(NewType(format!(
-                        "short-{}",
-                        idx % RANGE
-                    )));
+                    let s = ArcIntern::<NewType<String>>::new(new_vals[idx % RANGE].clone());
                     ans.push(s);
                 }
             },
@@ -54,7 +85,7 @@ fn bench_get_container(c: &mut Criterion) {
         b.iter_batched(
             || {},
             |_| {
-                let mut ans = Vec::with_capacity(RANGE);
+                let mut ans = Vec::with_capacity(ITER);
                 for idx in 0..ITER {
                     let s = ArcIntern::<usize>::new(idx % RANGE);
                     ans.push(s);
@@ -68,7 +99,7 @@ fn bench_get_container(c: &mut Criterion) {
         b.iter_batched(
             || {},
             |_| {
-                let mut ans = Vec::with_capacity(RANGE);
+                let mut ans = Vec::with_capacity(ITER);
                 for idx in 0..ITER {
                     let s = ArcIntern::<NewType<usize>>::new(NewType(idx % RANGE));
                     ans.push(s);
