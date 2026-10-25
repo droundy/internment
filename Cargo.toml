@@ -46,7 +46,7 @@ arc-interner = { version = "0.7", optional = true }
 # previously published release, which the benchmarks compare this one with:
 # after each release, point it at that release, and drop the benchmarks of any
 # type the previous release did not have.
-scaling = { version = "0.9.1", optional = true }
+scaling = { version = "0.10.0", optional = true }
 internment_old = { package = "internment", version = "=0.8.6", features = ["bench"], optional = true }
 
 append-only-vec = { version = "0.1.9", default-features = false, optional = true }
