@@ -107,3 +107,33 @@ than `internment`, but generates global pointers in a similar way.
 The `HConsed<T>` data type is always referenced counted with `Arc`,
 which makes it similar to `ArcIntern`, which is less efficient than
 `Intern`, but does not eternally leak memory.
+
+# Benchmarking
+
+The benchmarks use [`scaling`](https://crates.io/crates/scaling), which needs
+Rust 1.81, newer than this crate's minimum.  They are behind the `benchmarks`
+feature (not part of the public API), so ordinary builds and tests never see
+`scaling`:
+
+```bash
+cargo bench --features benchmarks --bench versions
+```
+
+- `versions` compares this release with the previous published one (the
+  `internment_old` dependency in `Cargo.toml`) at 1% accuracy, to see whether a
+  change made something faster or slower.
+- `controls` compares the previous release and this one each with itself, to
+  show how large a difference is just the benchmark being compiled twice.
+  A difference in `versions` smaller than the ones here means nothing.
+- `libraries` compares the interners with each other and with `String`s and the
+  `arc-interner` crate, to within 10%.
+- `contended` runs workloads that intern many values from one thread and from
+  fifty, one group per workload.  A full run takes a long time.
+
+Each takes a substring to select groups (`-- sort`), and
+`INTERNMENT_BENCH_MAX_SECS` shortens the time a group may take.  For small
+differences, such as in `versions`, compile with
+`RUSTFLAGS="-C llvm-args=-align-all-functions=6"`, which removes most of the
+effect of where code happens to land in memory, and for the most reliable
+numbers on Linux use `quiet-bench` from `scaling` to reserve CPUs.  `contended`
+must be run either with several reserved CPUs or with `SCALING_NO_PIN=1`.
