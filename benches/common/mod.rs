@@ -6,7 +6,7 @@
 //! Every use of the previously published release is spelled `internment_old`,
 //! and is confined to the `vs!` macro below and to `controls.rs`, so that
 //! moving the comparison to a newer release is a change to one line of
-//! `Cargo.toml` (see `plans/scaling-0.9.md`).
+//! `Cargo.toml`.
 #![allow(dead_code, unused_macros)]
 
 use std::cell::RefCell;
