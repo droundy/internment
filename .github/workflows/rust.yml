@@ -38,6 +38,13 @@ jobs:
         with:
           toolchain: ${{ matrix.rust }}
       - run: cargo test --all-features -- --test-threads=1
+  benches:
+    name: Benchmarks build
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+      - uses: dtolnay/rust-toolchain@stable
+      - run: cargo check --benches --features benchmarks
   docsrs:
     name: Generate docs.rs
     runs-on: ubuntu-latest
